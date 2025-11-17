@@ -3,6 +3,7 @@ import NodeCache from '@cacheable/node-cache'
 import * as readline from 'readline'
 import logger from './logger'
 import createPinoCompatibleLogger from './pinoToWinston'
+import createAccessControl from './accessControl'
 import { generate } from 'ts-qrcode-terminal'
 
 /**
@@ -34,13 +35,8 @@ export async function start(): Promise<void> {
         DisconnectReason,
     } = baileys as any
 
-    // initialize Baileys auth & version info
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
-    const { version, isLatest } = await fetchLatestBaileysVersion()
-    logger.info(`using WA v${version.join('.')}, isLatest: ${isLatest}`)
-
     // Load runtime config from project root `config.json` if present. This
-    // allows adjusting rate-limits and other runtime options without changing
+    // allows adjusting rate-limits, paths and other runtime options without changing
     // source code. If the file is missing or invalid, fall back to defaults.
     const fs = await import('fs')
     type RuntimeConfig = {
@@ -49,6 +45,15 @@ export async function start(): Promise<void> {
             globalPerWindow?: number
             windowSeconds?: number
         }
+        paths?: {
+            dataDir?: string
+            logsDir?: string
+            authDir?: string
+        }
+        purge?: {
+            purgeLogsOnStartup?: boolean
+        }
+        accessControl?: any
     }
 
     const defaultConfig: Required<NonNullable<RuntimeConfig>> = {
@@ -57,20 +62,39 @@ export async function start(): Promise<void> {
             globalPerWindow: 500,
             windowSeconds: 60,
         },
+        paths: {
+            dataDir: 'data',
+            logsDir: 'logs',
+            authDir: 'auth',
+        },
+        purge: {
+            purgeLogsOnStartup: false,
+        },
+        accessControl: {},
     }
 
     let runtimeConfig: Required<NonNullable<RuntimeConfig>> = defaultConfig
+    let parsedConfig: any = {}
     try {
         const cfgPath = 'config.json'
         if ((await fs.promises.stat(cfgPath)).isFile()) {
             const raw = await fs.promises.readFile(cfgPath, 'utf8')
-            const parsed = JSON.parse(raw) as RuntimeConfig
+            parsedConfig = JSON.parse(raw)
             runtimeConfig = {
                 rateLimit: {
-                    perSenderPerWindow: parsed?.rateLimit?.perSenderPerWindow ?? defaultConfig.rateLimit.perSenderPerWindow,
-                    globalPerWindow: parsed?.rateLimit?.globalPerWindow ?? defaultConfig.rateLimit.globalPerWindow,
-                    windowSeconds: parsed?.rateLimit?.windowSeconds ?? defaultConfig.rateLimit.windowSeconds,
+                    perSenderPerWindow: parsedConfig?.rateLimit?.perSenderPerWindow ?? defaultConfig.rateLimit.perSenderPerWindow,
+                    globalPerWindow: parsedConfig?.rateLimit?.globalPerWindow ?? defaultConfig.rateLimit.globalPerWindow,
+                    windowSeconds: parsedConfig?.rateLimit?.windowSeconds ?? defaultConfig.rateLimit.windowSeconds,
                 },
+                paths: {
+                    dataDir: parsedConfig?.paths?.dataDir ?? defaultConfig.paths.dataDir,
+                    logsDir: parsedConfig?.paths?.logsDir ?? defaultConfig.paths.logsDir,
+                    authDir: parsedConfig?.paths?.authDir ?? defaultConfig.paths.authDir,
+                },
+                purge: {
+                    purgeLogsOnStartup: parsedConfig?.purge?.purgeLogsOnStartup ?? defaultConfig.purge.purgeLogsOnStartup,
+                },
+                accessControl: parsedConfig?.accessControl ?? {},
             }
             logger.info('Loaded runtime config from config.json')
         }
@@ -80,13 +104,56 @@ export async function start(): Promise<void> {
     }
 
     const { perSenderPerWindow, globalPerWindow, windowSeconds } = runtimeConfig.rateLimit
-    // ensure defined and coerce to numbers for TypeScript
+    const dataDir = runtimeConfig.paths.dataDir ?? 'data'
+    const authDir = runtimeConfig.paths.authDir ?? 'auth'
+    const logsDir = runtimeConfig.paths.logsDir ?? 'logs'
+
+    // ensure rate limit numeric values are available
     if (perSenderPerWindow == null || globalPerWindow == null || windowSeconds == null) {
         throw new Error('Invalid runtime configuration for rate limiting')
     }
     const perSender = Number(perSenderPerWindow)
     const globalPer = Number(globalPerWindow)
     const windowSec = Number(windowSeconds)
+
+    // ensure data and auth directories exist
+    try {
+        await fs.promises.mkdir(dataDir, { recursive: true })
+        await fs.promises.mkdir(authDir, { recursive: true })
+    } catch (e) {
+        logger.warn('Failed to ensure data/auth directories exist: ' + (e && (e as Error).message))
+    }
+
+    // safe purge-on-startup: requires explicit env flag to actually delete files
+    if (runtimeConfig.purge.purgeLogsOnStartup) {
+        if (process.env.FORCE_PURGE_LOGS === '1') {
+            try {
+                const files = await fs.promises.readdir(logsDir)
+                for (const f of files) {
+                    const fp = `${logsDir}/${f}`
+                    try {
+                        const st = await fs.promises.stat(fp)
+                        if (st.isFile()) await fs.promises.unlink(fp)
+                    } catch (e) {
+                        logger.warn(`Failed to purge file ${fp}: ${(e && (e as Error).message) || e}`)
+                    }
+                }
+                logger.info('Purged logs directory on startup')
+            } catch (e) {
+                logger.warn('Failed to purge logs dir: ' + (e && (e as Error).message))
+            }
+        } else {
+            logger.warn('purgeLogsOnStartup is enabled in config.json but FORCE_PURGE_LOGS!=1, skipping destructive purge')
+        }
+    }
+
+    // instantiate access control helpers
+    const accessControl = createAccessControl(parsedConfig?.accessControl)
+
+    // initialize Baileys auth & version info using configured authDir
+    const { state, saveCreds } = await useMultiFileAuthState(authDir)
+    const { version, isLatest } = await fetchLatestBaileysVersion()
+    logger.info(`using WA v${version.join('.')}, isLatest: ${isLatest}`)
 
     // keep a pino-compatible logger that forwards to Winston to unify logs
     const baileysLogger = createPinoCompatibleLogger(logger)
@@ -139,6 +206,15 @@ export async function start(): Promise<void> {
     if (usePairingCode && !sock.authState.creds.registered) {
         const phoneNumber = await question('Please enter your phone number (with country code, e.g. 351XXXXXXXXX):\n')
         const code = await sock.requestPairingCode(phoneNumber)
+        // if a pairing passcode is configured, require it before proceeding
+        if (parsedConfig?.accessControl?.pairing?.passcode) {
+            const entered = await question('Enter pairing passcode:\n')
+            if (!accessControl.checkPairingPasscode(entered)) {
+                logger.warn('Invalid pairing passcode provided, aborting startup')
+                await gracefulShutdown(sock, rl, 1)
+                return
+            }
+        }
         logger.info(`Pairing code: ${code}`)
     }
 
@@ -204,8 +280,17 @@ export async function start(): Promise<void> {
                     const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text
 
                     if (text && !isSuspiciousIncoming(text)) {
-                        // Rate-limit checks: per-sender and global
                         const senderId = String(msg.key.participant || msg.key.remoteJid || 'unknown')
+
+                        // Access control: check whitelist/blacklist rules
+                        const isGroup = Boolean(msg.key.remoteJid && msg.key.remoteJid.endsWith('@g.us'))
+                        const groupJid = isGroup ? msg.key.remoteJid : undefined
+                        if (!accessControl.isMessageAllowed({ text, from: senderId, isGroup, groupJid })) {
+                            logger.warn(`Message from ${senderId} rejected by access control`) 
+                            continue
+                        }
+
+                        // Rate-limit checks: per-sender and global
                         const limited = isRateLimited(senderId)
                         if (limited.limited) {
                             logger.warn(`Dropping message due to rate limit (${limited.reason}) from ${senderId}`)

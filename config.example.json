@@ -3,5 +3,20 @@
     "perSenderPerWindow": 30,
     "globalPerWindow": 500,
     "windowSeconds": 60
+  },
+  "paths": {
+    "dataDir": "data",
+    "logsDir": "logs",
+    "authDir": "auth"
+  },
+  "logging": {
+    "level": "info",
+    "dailyRotate": true,
+    "maxSize": "20m",
+    "maxFiles": "14d",
+    "console": true
+  },
+  "purge": {
+    "purgeLogsOnStartup": false
   }
 }
