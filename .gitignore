@@ -7,3 +7,4 @@ wa-logs.txt
 /data
 /tests/tmp-logs
 config.json
+coverage/
