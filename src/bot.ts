@@ -20,6 +20,7 @@ export async function start(): Promise<void> {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
     const question = (text: string) => new Promise<string>((resolve) => rl.question(text, resolve))
     const usePairingCode = process.argv.includes('--use-pairing-code')
+    const qrOnly = process.argv.includes('--qr-only')
 
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
     const { version, isLatest } = await fetchLatestBaileysVersion()
@@ -44,6 +45,8 @@ export async function start(): Promise<void> {
     }
 
     // --- CORE: REPLY TO "!dXX" ---
+    const { getReplyForText } = await import('./handler')
+
     sock.ev.process(async (events) => {
         if (events['connection.update']) {
             const update = events['connection.update']
@@ -55,6 +58,10 @@ export async function start(): Promise<void> {
                     small: true,
                     qrErrorCorrectLevel: 1, // adjust as needed
                 })
+                if (qrOnly) {
+                    // If user requested QR only, exit after showing QR
+                    process.exit(0)
+                }
             }
 
             if (connection === 'close') {
@@ -82,35 +89,9 @@ export async function start(): Promise<void> {
                     const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text
 
                     if (text) {
-                        const statusMatch = text.trim().toLowerCase().match(/!ping$/);
-                        if (statusMatch) {
-                            await sock.sendMessage(
-                                msg.key.remoteJid!,
-                                { text: `pong! 🏓` },
-                                { quoted: msg }
-                            )
-                        }
-
-                        const statusMatch1 = text.trim().toLowerCase().match(/!marco$/);
-                        if (statusMatch1) {
-                            await sock.sendMessage(
-                                msg.key.remoteJid!,
-                                { text: `polo... ou seria Paulo? 🧲🎤` },
-                                { quoted: msg }
-                            )
-                        }
-                        // Match !dX or !roll dX (e.g., !d20, !roll d100)
-                        const match = text.trim().toLowerCase().match(/^!d(\d{1,3})$|^!roll\s+d(\d{1,3})$/)
-                        if (match) {
-                            const sides = parseInt(match[1] || match[2], 10)
-                            if (sides >= 2 && sides <= 100) {
-                                const roll = Math.floor(Math.random() * sides) + 1
-                                await sock.sendMessage(
-                                    msg.key.remoteJid!,
-                                    { text: `🎲 You rolled a *${roll}* on the d${sides}!` },
-                                    { quoted: msg }
-                                )
-                            }
+                        const reply = getReplyForText(text)
+                        if (reply) {
+                            await sock.sendMessage(msg.key.remoteJid!, { text: reply.text }, { quoted: msg })
                         }
                     }
                 }
