@@ -1,5 +1,7 @@
 # WhatsApp Roll Bot
 
+[![CI](https://github.com/supermarsx/whatsapp-roll-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/supermarsx/whatsapp-roll-bot/actions) [![Release](https://img.shields.io/github/v/release/supermarsx/whatsapp-roll-bot?label=release)](https://github.com/supermarsx/whatsapp-roll-bot/releases) [![License](https://img.shields.io/github/license/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/blob/main/license.md) [![Issues](https://img.shields.io/github/issues/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/issues) [![Node Version](https://img.shields.io/badge/node-18+-green)](https://nodejs.org/) [![npm version](https://img.shields.io/npm/v/whatsapp-roll-bot?color=orange)](https://www.npmjs.com/package/whatsapp-roll-bot) [![Built With](https://img.shields.io/badge/built%20with-TypeScript-blue)](https://www.typescriptlang.org/) [![Coverage](https://codecov.io/gh/supermarsx/whatsapp-roll-bot/branch/main/graph/badge.svg?token=)](https://codecov.io/gh/supermarsx/whatsapp-roll-bot)
+
 A compact, production-ready WhatsApp bot built on top of `@whiskeysockets/baileys`.
 It provides dice-rolling commands, pairing and OTP-based authentication flows,
 admin controls, and robust non-blocking logging. The project is implemented in

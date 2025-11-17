@@ -14,7 +14,8 @@
     "logs": "node scripts/tail-logs.js",
     "docker-run": "docker run --rm -it -v $(pwd)/data:/app/data -v $(pwd)/auth:/app/auth -v $(pwd)/sessions:/app/sessions -v $(pwd)/logs:/app/logs whatsapp-roll-bot:latest node dist/bot.js",
     "test": "jest --runInBand",
-    "lint": "eslint --ext .ts . || true",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint --ext .ts src tests",
     "format": "prettier --write \"**/*.{ts,js,json,md}\""
   },
   "keywords": [],
