@@ -1,6 +1,6 @@
 # WhatsApp Roll Bot
 
-[![CI](https://github.com/supermarsx/whatsapp-roll-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/supermarsx/whatsapp-roll-bot/actions) [![Release](https://img.shields.io/github/v/release/supermarsx/whatsapp-roll-bot?label=release)](https://github.com/supermarsx/whatsapp-roll-bot/releases) [![License](https://img.shields.io/github/license/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/blob/main/license.md) [![Issues](https://img.shields.io/github/issues/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/issues) [![Stars](https://img.shields.io/github/stars/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/stargazers) [![Forks](https://img.shields.io/github/forks/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/network/members) [![Watchers](https://img.shields.io/github/watchers/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/watchers) [![Node Version](https://img.shields.io/badge/node-24+-green)](https://nodejs.org/) [![GitHub downloads](https://img.shields.io/github/downloads/supermarsx/whatsapp-roll-bot/total?color=blue)](https://github.com/supermarsx/whatsapp-roll-bot/releases) [![Built With](https://img.shields.io/badge/built%20with-TypeScript-blue)](https://www.typescriptlang.org/) [![Coverage](badges/coverage.svg)](badges/coverage.svg)
+[![CI](https://github.com/supermarsx/whatsapp-roll-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/supermarsx/whatsapp-roll-bot/actions) [![Release](https://img.shields.io/github/v/release/supermarsx/whatsapp-roll-bot?label=release)](https://github.com/supermarsx/whatsapp-roll-bot/releases) [![License](https://img.shields.io/github/license/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/blob/main/license.md) [![Issues](https://img.shields.io/github/issues/supermarsx/whatsapp-roll-bot)](https://github.com/supermarsx/whatsapp-roll-bot/issues) [![Stars](https://img.shields.io/github/stars/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/stargazers) [![Forks](https://img.shields.io/github/forks/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/network/members) [![Watchers](https://img.shields.io/github/watchers/supermarsx/whatsapp-roll-bot?style=flat)](https://github.com/supermarsx/whatsapp-roll-bot/watchers) [![Node Version](https://img.shields.io/badge/node-20-22%20%28polyfills%29%20or%2024+-green)](https://nodejs.org/) [![GitHub downloads](https://img.shields.io/github/downloads/supermarsx/whatsapp-roll-bot/total?color=blue)](https://github.com/supermarsx/whatsapp-roll-bot/releases) [![Built With](https://img.shields.io/badge/built%20with-TypeScript-blue)](https://www.typescriptlang.org/) [![Coverage](badges/coverage.svg)](badges/coverage.svg)
 
 A compact, production-ready WhatsApp bot built on top of `@whiskeysockets/baileys`.
 It provides dice-rolling commands, pairing and OTP-based authentication flows,
@@ -24,13 +24,23 @@ background work.
 **Getting started**
 Prerequisites
 
-- Node.js 18+ (recommended). Node 16 may work with polyfills.
+- Node.js 24 (recommended). Node 20–22 are supported with the included polyfills; older versions may work but are unsupported.
 - npm 8+ (or yarn).
 
 Install and build
 
 - Install deps: `npm install`
 - Build: `npm run build`
+
+Node versions & polyfills
+
+- Recommended runtime: Node.js 24 or newer (native `fetch`, `AbortController`, and `crypto.randomUUID`).
+- Supported runtimes: Node.js 20–22 are supported by the project via the included runtime polyfills. The polyfills attempt to load `undici`, `node-fetch`, and `abort-controller` dynamically when needed; if you want to ensure the best compatibility install them explicitly:
+  - `npm install --save undici abort-controller`
+
+- No action is required to enable polyfills — `src/index.ts` and `src/cli.ts` import `src/polyfills.ts` which loads polyfills at startup. If you run under Node 24 the polyfills are mostly no-ops.
+
+- If you prefer to keep runtime dependencies minimal, you can omit these optional packages and the polyfill will gracefully fall back to a small built-in implementation for `crypto.randomUUID` while `fetch` may remain unavailable on very old Node versions.
 
 **Running & interactive mode**
 

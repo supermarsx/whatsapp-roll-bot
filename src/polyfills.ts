@@ -1,9 +1,37 @@
-// src/polyfills.ts
-// Lightweight runtime polyfills to support older Node versions.
-// Provides global fetch, AbortController, and crypto.randomUUID when missing.
+/**
+ * Runtime polyfills
+ *
+ * This module applies a small set of runtime polyfills to improve
+ * compatibility with older Node.js environments. The code runs immediately
+ * when the module is imported and is defensive by design: failures to
+ * load polyfills are caught and ignored so the host application is not
+ * disrupted.
+ *
+ * Provided polyfills (when available):
+ * - global.fetch (via undici or node-fetch)
+ * - global.AbortController (from undici or abort-controller)
+ * - crypto.randomUUID (RFC4122 v4-like implementation when absent)
+ *
+ * Note: the module intentionally avoids throwing and will only augment
+ * globals when safe to do so.
+ *
+ * @module polyfills
+ */
 
 export {};
 
+/**
+ * Apply runtime polyfills if needed.
+ *
+ * The self-invoked async function attempts to dynamically import preferred
+ * libraries (undici, node-fetch, abort-controller) and falls back to
+ * conservative implementations where appropriate. It logs brief console
+ * messages when polyfills are applied, but never throws — all errors are
+ * swallowed to avoid impacting application startup.
+ *
+ * @private
+ * @returns {Promise<void>} Resolves once polyfill attempts complete.
+ */
 void (async function applyPolyfills() {
   try {
     // Fetch + AbortController
@@ -46,6 +74,14 @@ void (async function applyPolyfills() {
       const nodeCrypto: any = cryptoMod;
       (globalThis as any).crypto = (globalThis as any).crypto || nodeCrypto;
       if (typeof (globalThis as any).crypto.randomUUID !== 'function') {
+        /**
+         * Provide an RFC4122 v4-ish randomUUID implementation when absent.
+         * The implementation uses Node's crypto.randomBytes when available
+         * or falls back to Math.random-based bytes. It sets the version and
+         * variant bits per the RFC. This is a pragmatic polyfill and should
+         * not be treated as a cryptographically stronger substitution for
+         * native implementations where those are available.
+         */
         (globalThis as any).crypto.randomUUID = function () {
           let bytes: Uint8Array;
           if (nodeCrypto && typeof nodeCrypto.randomBytes === 'function') {

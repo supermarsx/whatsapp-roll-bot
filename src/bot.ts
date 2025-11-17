@@ -1,3 +1,20 @@
+/**
+ * Main bot module
+ *
+ * This module initializes and runs the WhatsApp Roll Bot using the Baileys
+ * library. It wires together configuration loading, access control, OTP
+ * pairing, rate limiting, and message handlers that respond to simple
+ * commands. The module also exposes helpers used by the CLI and tests to
+ * inspect the in-memory store and to perform controlled shutdowns.
+ *
+ * Important exports:
+ * - start(): initialize and run the bot
+ * - shutdown(...): test-friendly shutdown wrapper
+ * - getStoreSnapshot(): return chats/contacts snapshot for CLI/tests
+ *
+ * @module bot
+ */
+
 import { Boom } from '@hapi/boom';
 
 // Module-level reference to the active socket to support CLI store inspection
@@ -18,7 +35,22 @@ import { loggingQueue } from './queues';
  * This boots Baileys with an adapter so its logs are forwarded into the
  * Winston application logger while keeping Baileys-compatible Pino API.
  *
- * @returns Promise<void> that resolves when initialization completes.
+ * The function performs the following high-level steps:
+ * - Load runtime configuration from `config.json` (if present) and apply
+ *   defaults for rate-limiting and paths.
+ * - Ensure data/auth directories exist and start a log rotation monitor.
+ * - Initialize OTP store and attach event handlers that log and optionally
+ *   deliver webhooks for OTP lifecycle events.
+ * - Create a Baileys socket, attach message handlers that enforce access
+ *   control, rate-limiting and map simple commands to replies.
+ * - Handle admin commands, pairing, OTP generation and delivery, and
+ *   graceful shutdown orchestration.
+ *
+ * The function is designed to be run as the main application entrypoint and
+ * will start a long-running event loop. It resolves once initialization
+ * completes; the process will continue running until shutdown.
+ *
+ * @returns {Promise<void>} Promise that resolves when initialization completes.
  */
 export async function start(): Promise<void> {
   type CacheStore = any;
@@ -882,6 +914,8 @@ export async function shutdown(
 /**
  * Provide a test/CLI-friendly snapshot of the in-memory store when the bot
  * is running. Returns null when no live socket/store is available.
+ *
+ * @returns {{chats:any,contacts:any}|null} Snapshot object or null if unavailable.
  */
 export function getStoreSnapshot() {
   try {
