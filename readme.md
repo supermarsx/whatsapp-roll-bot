@@ -1,54 +1,212 @@
-# WhatsApp Roll Bot (TypeScript)
+# WhatsApp Roll Bot
 
-Overview
-- A small WhatsApp bot using `@whiskeysockets/baileys` that listens for messages and responds to commands:
-  - `!d<number>` or `!roll d<number>` — rolls a die with the given sides (supported sides: 2–100).
-  - `!ping` — replies `pong! 🏓`.
-  - `!marco` — replies `polo... ou seria Paulo? 🧲🎤`.
-- Supports two authentication modes:
-  - QR code (default) — prints QR in terminal.
-  - Pairing code — pass `--use-pairing-code` to use the pairing code flow.
+A compact, production-ready WhatsApp bot built on top of `@whiskeysockets/baileys`.
+It provides dice-rolling commands, pairing and OTP-based authentication flows,
+admin controls, and robust non-blocking logging. The project is implemented in
+TypeScript and includes unit tests and a small queue-based task system for
+background work.
 
-Source
-- TypeScript source lives in `bot.ts`. Build output is written to `dist/`.
+**Table of contents**
 
-Quickstart
-1. Install dependencies:
-   - `npm install`
-2. Upgrade packages (optional, recommended): see "Upgrade to latest" below.
-3. Build and run:
-   - `npm run run` (builds to `dist/` and runs `node dist/bot.js`).
-   - `npm start` (alias).
-4. For pairing code auth:
-   - `node dist/bot.js --use-pairing-code`
+- Getting started
+- Running & interactive mode
+- Attaching to logs and console
+- Docker
+- Configuration
+- Commands & examples
+- Developer workflow
+- Troubleshooting
+- Contributing
+- License
 
-Scripts
-- `npm run compile` — compiles TypeScript to `dist/`.
-- `npm run build` — alias for compile.
-- `npm run run` — build then run compiled app.
-- `npm run start` — same as run.
-- `npm test` — runs unit tests (Jest).
-- `npm run lint` — runs ESLint.
-- `npm run format` — runs Prettier to format code.
+**Getting started**
+Prerequisites
 
-Configuration & Logs
-- Logs are written by the app to `./wa-logs.txt` (configured in the source logger).
-- Authentication data (by default) stored under `baileys_auth_info`.
+- Node.js 18+ (recommended). Node 16 may work with polyfills.
+- npm 8+ (or yarn).
 
-Configuration options (highlight)
-- `pairing.otpTTLSeconds` and `pairing.otpLength` — OTP lifetime and length.
-- `pairing.otpJailThreshold` and `pairing.otpJailDurationSeconds` — number of consecutive failed verifications that trigger a temporary jail and the jail duration in seconds (default 3 failures -> 3600s).
-- `admin.adminChannel`, `admin.enforceChannel`, `admin.allowAutoConfigure` — admin group configuration; if `allowAutoConfigure` is true a successful pairing from a group can automatically set that group as `adminChannel`.
-- `dice.typingSimulation` — simulate typing before sending dice rolls. Configured with `enabled`, `minMs` and `maxMs`.
-- `dice.maxConcurrentRollsPerSender` — protect against flooding by limiting concurrent rolls per sender.
-- `events` — global event hooks (disabled by default). Configure `events.hooks.<eventName>.enabled` and `url` to receive JSON POSTs for events like `diceRolled`, `pairingSucceeded`, `pairingFailed`, `rollLimitExceeded`, `shutdown`, and `logout`.
+Install and build
 
-Event hooks
-- Disabled by default. When enabled a POST with a JSON body `{ "event": "<name>", "payload": { ... } }` will be sent to the configured `url`.
+- Install deps: `npm install`
+- Build: `npm run build`
 
+**Running & interactive mode**
 
-CI
-- The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` which runs format, lint, tests, and build.
+- Run the bot (default):
+  - `npm start` (builds and runs `dist/bot.js`)
+- Run and attach an interactive console (prints QR codes, interactive logs):
+  - `npm run attach` or `npm run console`
+- Run with pairing-code (OTP) flow:
+  - `npm run start:pair` or `node dist/bot.js --use-pairing-code`
 
-Contributing
-- Please open PRs against TypeScript source and ensure `npm run lint`, `npm test`, and `npm run build` pass.
+Notes
+
+- When run in the foreground (console/attach), the bot prints readable logs to
+  the terminal (colorized in non-production environments) and prints QR codes
+  when QR-based pairing is used.
+
+**Attaching to logs and console**
+
+- Today’s log file: `logs/application-<DATE>.log` (default `logs/` directory).
+- Tail logs (Linux/macOS):
+  - `tail -F logs/application-$(date +%F).log`
+- Tail logs (PowerShell / Windows):
+  - `Get-Content logs\application-<DATE>.log -Wait`
+- Quick npm helper to tail logs (uses the `logs` script):
+  - `npm run logs`
+
+**Docker**
+
+- Build image:
+  - `docker build -t whatsapp-roll-bot:latest .`
+- Run container with persisted volumes (recommended):
+  - `docker run --rm -it \
+-v $(pwd)/data:/app/data \
+-v $(pwd)/auth:/app/auth \
+-v $(pwd)/sessions:/app/sessions \
+-v $(pwd)/logs:/app/logs \
+whatsapp-roll-bot:latest node dist/bot.js`
+- Docker Compose: `docker-compose up -d` (see `docker-compose.yml`).
+
+**Configuration**
+
+- The application reads `config.json` from the current working directory. Below is a comprehensive reference of supported configuration keys with their typical defaults and descriptions.
+
+- Top-level config keys (reference)
+  - `paths` — file-system locations (defaults shown)
+    - `dataDir` (default: `data`) — application data directory.
+    - `logsDir` (default: `logs`) — directory where daily rotated logs are written.
+    - `authDir` (default: `auth`) — directory for authentication state (QR/session files).
+    - `sessionsBaseDir` (default: `sessions`) — base path for per-session files.
+
+  - `logging` — logging options
+    - `level` (default: `info`) — log level (`debug`, `info`, `warn`, `error`). Can be overridden with the `LOG_LEVEL` env var.
+    - `dailyRotate` (default: `true`) — enable daily rotated file logs.
+    - `maxSize` (default: `20m`) — max size per log file before rotation.
+    - `maxFiles` (default: `14d`) — how long to keep rotated log files.
+    - `console` (default: `true` for non-production) — also log to console when true.
+    - `purgeLogsOnStartup` (default: `false`) — if true, remove old logs on startup when `FORCE_PURGE_LOGS` is set to `1`.
+
+  - `pairing` — OTP / pairing options
+    - `otpTTLSeconds` (default: `300`) — seconds an OTP remains valid.
+    - `otpLength` (default: `6`) — characters/digits in generated OTP.
+    - `otpJailThreshold` (default: `3`) — failed attempts before jailing sender.
+    - `otpJailDurationSeconds` (default: `3600`) — jail duration in seconds.
+    - `rng` (default: `numeric`) — OTP character set or generator type.
+    - `webhook` (optional) — object with `enabled`, `url`, `method`, and `headers` for delivering OTPs via webhook.
+    - `otpStoreKey` (optional) — hex key for encrypted OTP store (falls back to in-memory store if omitted).
+
+  - `rateLimit` — throttling controls
+    - `perSenderPerWindow` (default: `30`) — max actions per sender per window.
+    - `globalPerWindow` (default: `500`) — global max actions per window.
+    - `windowSeconds` (default: `60`) — window size in seconds for rate limits.
+
+  - `admin` — admin behavior and channel settings
+    - `adminChannel` (default: `null`) — ID of the admin channel; if null the bot may auto-configure when pairing.
+    - `enforceChannel` (default: `false`) — only accept admin commands from the configured channel when true.
+    - `allowAutoConfigure` (default: `true`) — allow the bot to configure admin channel on first pairing.
+
+  - `commands` — command behavior
+    - `silentFail` (default: `true`) — suppress detailed error info in chat replies when true.
+
+  - `accessControl` — rules for who may use the bot
+    - This key is passed through to the access control implementation. Typical options include whitelists, passcodes, and admin user lists. See `src/accessControl.ts` for the exact schema expected by the running code.
+
+- Environment variables
+  - `NODE_ENV` — affects console logging defaults and other environment-specific behavior.
+  - `LOG_LEVEL` — override for `logging.level`.
+  - `OTP_STORE_KEY` — hex key used to enable and decrypt the persistent/encrypted OTP store.
+  - `FORCE_PURGE_LOGS` — set to `1` to allow purging logs when `logging.purgeLogsOnStartup` is enabled.
+
+- Example `config.json` (expanded)
+
+```json
+{
+  "paths": {
+    "dataDir": "data",
+    "logsDir": "logs",
+    "authDir": "auth",
+    "sessionsBaseDir": "sessions"
+  },
+  "logging": {
+    "level": "info",
+    "dailyRotate": true,
+    "console": true,
+    "maxSize": "20m",
+    "maxFiles": "14d",
+    "purgeLogsOnStartup": false
+  },
+  "pairing": {
+    "otpTTLSeconds": 300,
+    "otpLength": 6,
+    "otpJailThreshold": 3,
+    "otpJailDurationSeconds": 3600,
+    "rng": "numeric",
+    "webhook": { "enabled": false }
+  },
+  "rateLimit": {
+    "perSenderPerWindow": 30,
+    "globalPerWindow": 500,
+    "windowSeconds": 60
+  },
+  "admin": {
+    "adminChannel": null,
+    "enforceChannel": false,
+    "allowAutoConfigure": true
+  },
+  "commands": {
+    "silentFail": true
+  }
+}
+```
+
+- Tips and notes
+  - If you provide `OTP_STORE_KEY` the app will attempt to use an encrypted persistent OTP store; otherwise the OTP store is in-memory (lost on restart).
+  - `logsDir` should be writable by the user running the bot; permissions issues are a common cause for missing logs.
+  - The bot reads `config.json` from the current working directory; when running via systemd or Docker make sure the working directory and mounted volumes are correct.
+
+- Environment variables quick reference
+  - `NODE_ENV`, `LOG_LEVEL`, `OTP_STORE_KEY`, `FORCE_PURGE_LOGS` (see above).
+
+**Bot commands & examples**
+
+- Dice roll
+  - `!d6` or `!roll d6` — rolls a six-sided die (example reply: `You rolled 4`)
+  - Supported sides: 2–100.
+- Ping
+  - `!ping` — bot replies `pong!`.
+- Admin (requires admin channel or permissions)
+  - `!admin set <option> <value>` — set an admin configuration (refer to
+    config for available options).
+
+**Developer workflow**
+
+- Run unit tests: `npm test`
+- Run a single test: `npm test -- tests/otpStore.test.ts --runInBand`
+- Lint: `npm run lint`
+- Format: `npm run format`
+- Build: `npm run build`
+
+Useful npm scripts (added)
+
+- `npm run attach` — build and run the bot in attach/interactive mode
+- `npm run console` — build and run in foreground
+- `npm run logs` — helper to tail today's log file
+- `npm run docker-run` — helper (local) to run the image with mounted volumes
+
+**Troubleshooting**
+
+- QR not visible: ensure terminal supports UTF-8 and does not strip characters.
+- Pairing failing: check permissions on `auth/` and `data/` directories.
+- Log files not created: verify `logs/` exists and `config.json` logging section.
+- If the bot fails immediately, run locally in attach mode and inspect console
+  output for stack traces.
+
+**Contributing**
+
+- Open issues and PRs. Follow existing code style and ensure tests pass.
+- Before submitting a PR, run: `npm run lint`, `npm test`, `npm run build`.
+
+**License**
+
+- See `license.md` for license details.
