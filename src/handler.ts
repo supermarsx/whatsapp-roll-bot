@@ -4,73 +4,178 @@ import { parseRollCommand, rollDice, isValidSides } from './commands/roll'
  * Simple reply payload used by `getReplyForText` to instruct the bot which
  * text to send back to the user.
  */
-export type Reply = { text: string }
+ export type Reply = { text: string }
 
-/**
- * Detect simple suspicious input patterns that could indicate attempts to
- * include shell commands, remote URLs or code that might lead to RCE if later
- * expanded into a runner. This is a conservative, best-effort check — keep in
- * mind it cannot replace secure coding practices but helps reduce attack
- * surface if the system is extended in future.
- *
- * @param text - The message text to inspect
- * @returns true if suspicious content detected
- */
-function isSuspicious(text: string): boolean {
-  if (!text) return false
-  // Reject very long messages early
-  if (text.length > 500) return true
+// Load runtime config to pick enabled commands and dice options. This mirrors
+// the approach used in `src/logger.ts` to allow runtime tuning without code
+// changes. If no config is present, sensible defaults are used.
+ let runtimeCfg: any = {}
+ try {
+   // eslint-disable-next-line @typescript-eslint/no-var-requires
+   const fs = require('fs')
+   const cfgPath = 'config.json'
+   if (fs.existsSync(cfgPath)) {
+     const raw = fs.readFileSync(cfgPath, 'utf8')
+     runtimeCfg = JSON.parse(raw)
+   }
+ } catch (e) {
+   // ignore and rely on defaults below
+ }
 
-  const suspiciousRegexes: RegExp[] = [
-    /[`$()<>;|&]/, // common shell metacharacters
-    /\b(?:wget|curl|fetch|exec|spawn|system|sh|bash|cmd|powershell|php|node|python|ruby|eval|require|child_process|process\.env)\b/i,
-    /https?:\/\//i, // URLs
-    /(base64|data:text)\s*:/i, // embedded data blobs
-  ]
+  const commandsEnabled = runtimeCfg?.commands?.enabled ?? { ping: true, marco: true, roll: true, logout: true, shutdown: true }
+  const diceCfg = runtimeCfg?.dice ?? { minSides: 2, maxSides: 100, allowMultipleRolls: false, maxRolls: 5 }
+  const rngCfg = runtimeCfg?.rng ?? { method: 'math', seed: null }
 
-  return suspiciousRegexes.some((r) => r.test(text))
-}
-
-/**
- * Convert an incoming message text into an optional reply. This function uses
- * a whitelist of allowed, simple commands and performs conservative input
- * filtering to reduce the risk of remote code execution if message text gets
- * used in other contexts later.
- *
- * Recognized commands (exact matches allowed):
- * - `!ping` -> `pong! 🏓`
- * - `!marco` -> `polo... ou seria Paulo? 🧲🎤`
- * - `!dN` or `!roll dN` -> roll N-sided die and reply with the result
- *
- * The function rejects messages that appear suspicious (URLs, shell metacharacters,
- * binary blobs) or are excessively long.
- *
- * @param text - The incoming message text
- * @returns A `Reply` object with the reply text, or `null` if no reply or the
- * message is disallowed.
- */
-export function getReplyForText(text: string): Reply | null {
-  if (!text) return null
-  const trimmed = text.trim()
-
-  // quick length guard
-  if (trimmed.length === 0 || trimmed.length > 200) return null
-
-  // reject suspicious messages early
-  if (isSuspicious(trimmed)) return null
-
-  const lower = trimmed.toLowerCase()
-
-  // Strict exact-match checks for small commands
-  if (/^!ping\s*$/i.test(lower)) return { text: 'pong! 🏓' }
-  if (/^!marco\s*$/i.test(lower)) return { text: 'polo... ou seria Paulo? 🧲🎤' }
-
-  // Delegate roll parsing to the command parser which already validates format
-  const sides = parseRollCommand(trimmed)
-  if (sides !== null && isValidSides(sides)) {
-    const roll = rollDice(sides)
-    return { text: `🎲 You rolled a *${roll}* on the d${sides}!` }
+  // human-friendly help descriptions for commands
+  const commandHelp: Record<string, string> = {
+    ping: '!ping — simple liveness check (replies `pong! 🏓`)',
+    marco: '!marco — cultural reference reply',
+    roll: '!dN or !roll dN or !roll k dN — roll dice e.g. `!d20`, `!roll 3d6`',
+    logout: '!logout — (admin) log the bot out of WhatsApp',
+    shutdown: '!shutdown — (admin) gracefully shutdown the bot',
+    help: '!help — show this help message',
   }
 
-  return null
-}
+
+ function getRandomFunc(method: string, seed: any): (() => number) {
+   if (method === 'crypto') {
+     try {
+       // use Node crypto.randomInt via wrapper to return [0,1)
+       // eslint-disable-next-line @typescript-eslint/no-var-requires
+       const crypto = require('crypto')
+       return () => (crypto.randomInt(0, 1 << 30) / (1 << 30))
+     } catch (e) {
+       // fallback
+       return Math.random
+     }
+   }
+   if (method === 'mulberry32') {
+     // simple seeded PRNG implementation
+     const seedNum = Number(seed) || Date.now()
+     let t = seedNum >>> 0
+     return () => {
+       t += 0x6D2B79F5
+       let r = Math.imul(t ^ (t >>> 15), 1 | t)
+       r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r
+       return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+     }
+   }
+   // default
+   return Math.random
+ }
+
+ /**
+  * Detect simple suspicious input patterns that could indicate attempts to
+  * include shell commands, remote URLs or code that might lead to RCE if later
+  * expanded into a runner. This is a conservative, best-effort check — keep in
+  * mind it cannot replace secure coding practices but helps reduce attack
+  * surface if the system is extended in future.
+  *
+  * @param text - The message text to inspect
+  * @returns true if suspicious content detected
+  */
+ function isSuspicious(text: string): boolean {
+   if (!text) return false
+   // Reject very long messages early
+   if (text.length > 500) return true
+
+   const suspiciousRegexes: RegExp[] = [
+     /[`$()<>;|&]/, // common shell metacharacters
+     /\b(?:wget|curl|fetch|exec|spawn|system|sh|bash|cmd|powershell|php|node|python|ruby|eval|require|child_process|process\.env)\b/i,
+     /https?:\/\//i, // URLs
+     /(base64|data:text)\s*:/i, // embedded data blobs
+   ]
+
+   return suspiciousRegexes.some((r) => r.test(text))
+ }
+
+ /**
+  * Convert an incoming message text into an optional reply. This function uses
+  * a whitelist of allowed, simple commands and performs conservative input
+  * filtering to reduce the risk of remote code execution if message text gets
+  * used in other contexts later.
+  *
+  * Recognized commands (exact matches allowed):
+  * - `!ping` -> `pong! 🏓`
+  * - `!marco` -> `polo... ou seria Paulo? 🧲🎤`
+  * - `!dN` or `!roll dN` or `!roll k dN` -> roll dice and reply with the result
+  *
+  * The function rejects messages that appear suspicious (URLs, shell metacharacters,
+  * binary blobs) or are excessively long.
+  *
+  * @param text - The incoming message text
+  * @returns A `Reply` object with the reply text, or `null` if no reply or the
+  * message is disallowed.
+  */
+ export function getReplyForText(text: string): Reply | null {
+   if (!text) return null
+   const trimmed = text.trim()
+
+   // quick length guard
+   if (trimmed.length === 0 || trimmed.length > 500) return null
+
+   // reject suspicious messages early
+   if (isSuspicious(trimmed)) return null
+
+   const lower = trimmed.toLowerCase()
+
+    // Strict exact-match checks for small commands
+    if (/^!ping\s*$/i.test(lower)) return commandsEnabled?.ping ? { text: 'pong! 🏓' } : null
+    if (/^!marco\s*$/i.test(lower)) return commandsEnabled?.marco ? { text: 'polo... or was it Paulo? 🧲🎤' } : null
+
+    // help command: build a message listing enabled commands
+    if (/^!help\s*$/i.test(lower)) {
+      const enabled = Object.entries(commandsEnabled).filter(([_, v]) => v).map(([k]) => k)
+      const lines = enabled.map((c) => commandHelp[c] || c)
+      return { text: `Available commands:\n${lines.join('\n')}` }
+    }
+
+    // admin test commands
+    if (/^!latency\s*$/i.test(lower)) return commandsEnabled?.latency ? { text: '!latency' } : null
+    const apMatch = trimmed.match(/^!adminpair(?:\s+(\S+))?$/i)
+    if (apMatch) {
+      const code = apMatch[1]
+      return { text: code ? `!adminpair:${code}` : '!adminpair' }
+    }
+
+    // Admin management commands: set/unset admin channel and jail operations
+    const setAdminMatch = trimmed.match(/^!setadmin\s*$/i)
+    if (setAdminMatch) return { text: '!setadmin' }
+    const unsetAdminMatch = trimmed.match(/^!unsetadmin\s*$/i)
+    if (unsetAdminMatch) return { text: '!unsetadmin' }
+    const listJailedMatch = trimmed.match(/^!listjailed\s*$/i)
+    if (listJailedMatch) return { text: '!listjailed' }
+    const unjailMatch = trimmed.match(/^!unjail\s+(\S+)$/i)
+    if (unjailMatch) return { text: `!unjail:${unjailMatch[1]}` }
+
+    // logout and shutdown commands are handled by bot.ts and must be enabled
+    if (/^!logout\s*$/i.test(lower)) return commandsEnabled?.logout ? { text: '!logout' } : null
+    if (/^!shutdown\s*$/i.test(lower)) return commandsEnabled?.shutdown ? { text: '!shutdown' } : null
+
+
+   // Delegate roll parsing to the command parser which already validates format
+   const parsed = parseRollCommand(trimmed)
+   if (parsed !== null) {
+     const { rolls, sides } = parsed
+     // enforce dice config
+     const minSides = Number(diceCfg.minSides || 2)
+     const maxSides = Number(diceCfg.maxSides || 100)
+     const allowMultiple = Boolean(diceCfg.allowMultipleRolls)
+     const maxRolls = Number(diceCfg.maxRolls || 5)
+
+     if (!isValidSides(sides, minSides, maxSides)) return null
+     if (rolls > 1 && !allowMultiple) return null
+     if (rolls > maxRolls) return null
+
+     const rngFunc = getRandomFunc(rngCfg.method || 'math', rngCfg.seed)
+     const results: number[] = []
+     for (let i = 0; i < rolls; i++) {
+       results.push(rollDice(sides, rngFunc))
+     }
+     const textRes = results.length === 1 ? `🎲 You rolled a *${results[0]}* on the d${sides}!` : `🎲 You rolled: ${results.join(', ')} (d${sides})`
+     return { text: textRes }
+   }
+
+   return null
+ }
+

@@ -2,11 +2,11 @@ import { parseRollCommand, rollDice, isValidSides } from '../src/commands/roll'
 
 describe('parseRollCommand', () => {
   test('parses !d20', () => {
-    expect(parseRollCommand('!d20')).toBe(20)
+    expect(parseRollCommand('!d20')).toEqual({ rolls: 1, sides: 20 })
   })
 
   test('parses !roll d100', () => {
-    expect(parseRollCommand('!roll d100')).toBe(100)
+    expect(parseRollCommand('!roll d100')).toEqual({ rolls: 1, sides: 100 })
   })
 
   test('returns null for non-command', () => {

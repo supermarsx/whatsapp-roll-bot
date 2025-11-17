@@ -35,6 +35,18 @@ Configuration & Logs
 - Logs are written by the app to `./wa-logs.txt` (configured in the source logger).
 - Authentication data (by default) stored under `baileys_auth_info`.
 
+Configuration options (highlight)
+- `pairing.otpTTLSeconds` and `pairing.otpLength` — OTP lifetime and length.
+- `pairing.otpJailThreshold` and `pairing.otpJailDurationSeconds` — number of consecutive failed verifications that trigger a temporary jail and the jail duration in seconds (default 3 failures -> 3600s).
+- `admin.adminChannel`, `admin.enforceChannel`, `admin.allowAutoConfigure` — admin group configuration; if `allowAutoConfigure` is true a successful pairing from a group can automatically set that group as `adminChannel`.
+- `dice.typingSimulation` — simulate typing before sending dice rolls. Configured with `enabled`, `minMs` and `maxMs`.
+- `dice.maxConcurrentRollsPerSender` — protect against flooding by limiting concurrent rolls per sender.
+- `events` — global event hooks (disabled by default). Configure `events.hooks.<eventName>.enabled` and `url` to receive JSON POSTs for events like `diceRolled`, `pairingSucceeded`, `pairingFailed`, `rollLimitExceeded`, `shutdown`, and `logout`.
+
+Event hooks
+- Disabled by default. When enabled a POST with a JSON body `{ "event": "<name>", "payload": { ... } }` will be sent to the configured `url`.
+
+
 CI
 - The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` which runs format, lint, tests, and build.
 
