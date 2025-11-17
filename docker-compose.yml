@@ -1,0 +1,19 @@
+services:
+  whatsapp-roll-bot:
+    build: .
+    image: whatsapp-roll-bot:latest
+    container_name: whatsapp-roll-bot
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./auth:/app/auth
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+      - ./config.json:/app/config.json:ro
+    environment:
+      - NODE_ENV=production
+      # Uncomment to force destructive purge of logs on startup (use with caution)
+      # - FORCE_PURGE_LOGS=1
+    # Example: override command to use pairing code or show only QR
+    # command: ["node", "dist/bot.js", "--use-pairing-code"]
+    ports: []

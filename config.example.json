@@ -1,0 +1,92 @@
+{
+  "rateLimit": {
+    "perSenderPerWindow": 30,
+    "globalPerWindow": 500,
+    "windowSeconds": 60
+  },
+  "paths": {
+    "dataDir": "data",
+    "logsDir": "logs",
+    "authDir": "auth",
+    "sessionsBaseDir": "sessions"
+  },
+  "logging": {
+    "level": "info",
+    "dailyRotate": true,
+    "maxSize": "20m",
+    "maxFiles": "14d",
+    "console": true,
+    "purgeLogsOnStartup": false
+  },
+  "commands": {
+    "enabled": {
+      "ping": true,
+      "marco": true,
+      "roll": true,
+      "logout": true,
+      "shutdown": true,
+      "latency": true,
+      "adminpair": true
+    }
+  },
+  "admin": {
+    "adminChannel": "admins@g.us",
+    "enforceChannel": true,
+    "allowAutoConfigure": true
+  },
+  "pairing": {
+    "passcode": null,
+    "trustedNumbers": [],
+    "otpTTLSeconds": 300,
+    "otpLength": 6,
+    "otpJailThreshold": 3,
+    "otpJailDurationSeconds": 3600,
+    "webhook": {
+      "enabled": false,
+      "url": "https://example.com/pairing",
+      "method": "POST",
+      "headers": { "Content-Type": "application/json" }
+    }
+  },
+  "commands": {
+    "silentFail": true,
+    "enabled": {
+      "ping": true,
+      "marco": true,
+      "roll": true,
+      "logout": true,
+      "shutdown": true,
+      "latency": true,
+      "adminpair": true
+    }
+  },
+  "dice": {
+    "minSides": 2,
+    "maxSides": 100,
+    "allowMultipleRolls": false,
+    "maxRolls": 5,
+    "typingSimulation": {
+      "enabled": true,
+      "minMs": 300,
+      "maxMs": 1200
+    },
+    "maxConcurrentRollsPerSender": 3
+  },
+  "rng": {
+    "method": "crypto",
+    "seed": null,
+    "methods": ["math","crypto","mulberry32"]
+  },
+  "events": {
+    "enabled": false,
+    "hooks": {
+      "diceRolled": { "enabled": false, "url": "" },
+      "pairingSucceeded": { "enabled": false, "url": "" },
+      "pairingFailed": { "enabled": false, "url": "" },
+      "rollLimitExceeded": { "enabled": false, "url": "" },
+      "shutdown": { "enabled": false, "url": "" },
+      "logout": { "enabled": false, "url": "" }
+    }
+  }
+}
+
