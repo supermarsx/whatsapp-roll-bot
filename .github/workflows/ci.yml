@@ -88,10 +88,39 @@ jobs:
           files: ./coverage/**/*.json
           fail_ci_if_error: false
 
+  generate-badge:
+    name: Generate coverage badge
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate coverage badge
+        run: node scripts/generate-coverage-badge.js
+
+      - name: Commit coverage badge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add badges/coverage.svg
+          git commit -m "chore(docs): update coverage badge" || echo "No changes to commit"
+          git push origin HEAD:main || echo "Push failed"
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [generate-badge]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
