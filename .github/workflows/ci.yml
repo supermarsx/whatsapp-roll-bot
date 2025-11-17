@@ -82,6 +82,12 @@ jobs:
       - name: Run tests (coverage)
         run: npm test -- --coverage --coverageProvider=v8
 
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: coverage
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -102,6 +108,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
 
       - name: Install
         run: npm ci

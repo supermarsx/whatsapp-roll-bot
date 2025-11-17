@@ -1,8 +1,52 @@
 #!/usr/bin/env node
+/**
+ * Automated monthly release creator
+ *
+ * This script is intended to run (for example in CI) on the last day of the
+ * month. It checks whether there have been commits in the current month; if
+ * so it calculates the next release tag in the format `YY.N` (where `YY` is
+ * the two-digit year and `N` is a sequential number for that year) and
+ * creates a GitHub release with a body containing a short commit summary.
+ *
+ * Environment variables:
+ * - GITHUB_REPOSITORY : owner/repo string required to target the repository
+ * - GITHUB_TOKEN      : GitHub API token with permission to create releases
+ *
+ * Notes:
+ * - The script only performs actions on the last day of the calendar month
+ *   (it checks that tomorrow is the 1st).
+ * - If there are no commits in the month the script exits without creating a
+ *   release.
+ * - The script uses the GitHub Releases API to list existing releases and
+ *   create a new release.
+ *
+ * Usage: node scripts/monthly-release.js
+ *
+ * @module scripts/monthly-release
+ */
+
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Main entrypoint for the release script.
+ *
+ * The function performs these steps:
+ * 1. Verify the current day is the last day of the month (tomorrow is day 1).
+ * 2. Count commits since the first day of the month using `git rev-list`.
+ * 3. If commits exist, fetch existing GitHub releases for the repository and
+ *    compute the next sequential `YY.N` tag for the year.
+ * 4. Prepare a release body summarizing commits for the month and create the
+ *    release via the GitHub Releases API.
+ *
+ * The function logs progress to stdout/stderr and returns an exit code number
+ * indicating success (0) or failure (non-zero). The script will call
+ * process.exit with the returned code when the promise resolves.
+ *
+ * @async
+ * @returns {Promise<number>} Exit code (0 on success, non-zero on error)
+ */
 async function main() {
   try {
     // Only run on last day of month
@@ -109,6 +153,13 @@ async function main() {
   }
 }
 
+/**
+ * Ensure `fetch` is available on older Node runtimes by dynamically
+ * importing `node-fetch` when necessary. On Node 18+ this is a no-op.
+ *
+ * This small compatibility shim returns a Promise-based fetch and is used
+ * by the script above to perform GitHub API calls.
+ */
 // Node 18+ has global fetch; ensure we have it
 if (typeof fetch === 'undefined') {
   global.fetch = (...args) => import('node-fetch').then(m => m.default(...args));

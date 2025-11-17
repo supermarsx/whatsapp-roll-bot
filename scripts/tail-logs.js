@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// Cross-platform log tail helper for npm script `npm run logs`
-// Reads config.json for logsDir (falls back to './logs') and tails today's log file.
-
 /**
  * tail-logs script
  *
