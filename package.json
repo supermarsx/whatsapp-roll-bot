@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-roll-bot",
   "version": "1.0.0",
-  "main": "dist/bot.js",
+  "main": "dist/index.js",
   "scripts": {
     "compile": "tsc -p tsconfig.json",
     "build": "npm run compile",

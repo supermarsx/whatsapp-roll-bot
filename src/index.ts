@@ -1,4 +1,6 @@
-import start from './src/index'
+import { start } from './bot'
+
+export default start
 
 if (require.main === module) {
     start().catch((err) => {
@@ -6,6 +8,3 @@ if (require.main === module) {
         process.exit(1)
     })
 }
-
-export default start
-
