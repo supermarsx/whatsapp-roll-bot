@@ -2,10 +2,34 @@
 // Cross-platform log tail helper for npm script `npm run logs`
 // Reads config.json for logsDir (falls back to './logs') and tails today's log file.
 
+/**
+ * tail-logs script
+ *
+ * This small executable locates today's application log file (by default
+ * `logs/application-YYYY-MM-DD.log` or as configured in `config.json`) and
+ * streams new lines to stdout. On Windows it uses PowerShell's
+ * Get-Content -Wait; on POSIX systems it invokes `tail -F`.
+ *
+ * The script is intended for developer convenience and is used by the
+ * project's npm scripts. It prefers a `config.json` in the current working
+ * directory for `paths.logsDir` or `logging.logsDir` but falls back to
+ * `./logs` when not present.
+ *
+ * @module scripts/tail-logs
+ */
+
 const fs = require('fs');
 const path = require('path');
 const child_process = require('child_process');
 
+/**
+ * Read and parse a local `config.json` file if present.
+ *
+ * If the file is missing or cannot be parsed an empty object is returned and
+ * an error is written to stderr.
+ *
+ * @returns {Object} Parsed configuration object or an empty object on error.
+ */
 function readConfig() {
   try {
     const p = path.resolve(process.cwd(), 'config.json');
@@ -17,6 +41,21 @@ function readConfig() {
   }
 }
 
+/**
+ * Main entrypoint: determine today's log filename and stream it to stdout.
+ *
+ * Behavior:
+ * - Determine logs directory from config.paths.logsDir or
+ *   config.logging.logsDir, falling back to 'logs'.
+ * - Build filename `application-YYYY-MM-DD.log` for today's date.
+ * - If the file does not exist exit with code 1.
+ * - On Windows spawn PowerShell Get-Content -Wait, otherwise spawn `tail -F`.
+ *
+ * The process inherits stdio so log lines are printed directly to the
+ * console. Child process exit codes are propagated to the script's exit.
+ *
+ * @returns {void}
+ */
 function main() {
   const cfg = readConfig();
   const logsDir =
