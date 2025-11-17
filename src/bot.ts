@@ -224,11 +224,21 @@ export async function start(): Promise<void> {
       const method = webhook.method || 'POST';
       const headers = webhook.headers || { 'Content-Type': 'application/json' };
       const body = JSON.stringify({ event: eventName, payload });
-      const fetchFn = (global as any).fetch || require('node-fetch');
-      const res = await fetchFn(webhook.url, { method, headers, body, timeout: 5000 });
-      const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
-      enqueueLog('info', `OTP event ${eventName} webhook ${ok ? 'succeeded' : 'failed'}`);
-      return { ok };
+      const controller = new (globalThis as any).AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await (globalThis as any).fetch(webhook.url, {
+          method,
+          headers,
+          body,
+          signal: controller.signal,
+        });
+        const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
+        enqueueLog('info', `OTP event ${eventName} webhook ${ok ? 'succeeded' : 'failed'}`);
+        return { ok };
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (e) {
       enqueueLog('warn', 'OTP event webhook delivery failed: ' + (e && (e as Error).message));
       return { ok: false, reason: e && (e as Error).message };
@@ -277,11 +287,21 @@ export async function start(): Promise<void> {
       const method = webhook.method || 'POST';
       const headers = webhook.headers || { 'Content-Type': 'application/json' };
       const body = JSON.stringify({ jid, code, expiresAt });
-      const fetchFn = (global as any).fetch || require('node-fetch');
-      const res = await fetchFn(webhook.url, { method, headers, body, timeout: 5000 });
-      const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
-      logger.info(`Pairing webhook ${ok ? 'succeeded' : 'failed'} for ${jid} -> ${webhook.url}`);
-      return { ok };
+      const controller = new (globalThis as any).AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await (globalThis as any).fetch(webhook.url, {
+          method,
+          headers,
+          body,
+          signal: controller.signal,
+        });
+        const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
+        logger.info(`Pairing webhook ${ok ? 'succeeded' : 'failed'} for ${jid} -> ${webhook.url}`);
+        return { ok };
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (e) {
       logger.warn('Pairing webhook delivery failed: ' + (e && (e as Error).message));
       return { ok: false, reason: e && (e as Error).message };

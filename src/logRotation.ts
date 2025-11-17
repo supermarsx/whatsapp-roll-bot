@@ -20,13 +20,19 @@ export function startLogRotationMonitor(
   async function sendWebhook(payload: any) {
     if (!webhookUrl) return;
     try {
-      const fetchFn = (global as any).fetch || require('node-fetch');
-      await fetchFn(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        timeout: 5000,
-      });
+      // Use global fetch with AbortController for timeout
+      const controller = new (globalThis as any).AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        await (globalThis as any).fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (e) {
       enqueueLog(
         'warn',

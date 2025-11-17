@@ -57,21 +57,30 @@ export async function dispatchEvent(eventName: string, payload: any) {
     const evCfg = cfg?.events?.hooks?.[eventName];
     if (!cfg?.events?.enabled || !evCfg || !evCfg.enabled || !evCfg.url)
       return { ok: false, reason: 'disabled' };
-    const fetchFn = (global as any).fetch || require('node-fetch');
     const method = evCfg.method || 'POST';
     const headers = evCfg.headers || { 'Content-Type': 'application/json' };
     const body = JSON.stringify({ event: eventName, payload });
-    const res = await fetchFn(evCfg.url, { method, headers, body, timeout: 5000 });
-    const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
+    // Use global fetch and AbortController (Node 24+). Timeout via AbortController.
+    const controller = new (globalThis as any).AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
     try {
-      // prefer synchronous safeEnqueue when available
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { safeEnqueue } = require('./asyncLogger');
-      safeEnqueue('info', `Event hook ${eventName} -> ${evCfg.url} ${ok ? 'ok' : 'failed'}`);
-    } catch {
-      logger.info(`Event hook ${eventName} -> ${evCfg.url} ${ok ? 'ok' : 'failed'}`);
+      const res = await (globalThis as any).fetch(evCfg.url, {
+        method,
+        headers,
+        body,
+        signal: controller.signal,
+      });
+      const ok = res && (res.status === 200 || res.status === 201 || res.status === 204);
+      try {
+        const { safeEnqueue } = require('./asyncLogger');
+        safeEnqueue('info', `Event hook ${eventName} -> ${evCfg.url} ${ok ? 'ok' : 'failed'}`);
+      } catch {
+        logger.info(`Event hook ${eventName} -> ${evCfg.url} ${ok ? 'ok' : 'failed'}`);
+      }
+      return { ok };
+    } finally {
+      clearTimeout(timer);
     }
-    return { ok };
   } catch (e) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
