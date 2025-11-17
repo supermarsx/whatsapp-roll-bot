@@ -1,14 +1,33 @@
 import { parseRollCommand, rollDice, isValidSides } from './commands/roll'
 
 /**
+ * Message handler helpers
+ *
+ * This module contains utilities to parse incoming chat messages and map
+ * them to simple text replies for supported commands (ping, marco, roll,
+ * admin-management helpers, etc.). The implementation is intentionally
+ * conservative: messages are validated and suspicious inputs rejected to
+ * reduce risk if message text is re-used in other contexts.
+ *
+ * @module handler
+ */
+
+/**
  * Simple reply payload used by `getReplyForText` to instruct the bot which
  * text to send back to the user.
+ *
+ * @typedef {Object} Reply
+ * @property {string} text - The message text to send as a reply.
  */
  export type Reply = { text: string }
 
-// Load runtime config to pick enabled commands and dice options. This mirrors
-// the approach used in `src/logger.ts` to allow runtime tuning without code
-// changes. If no config is present, sensible defaults are used.
+/**
+ * Parsed runtime configuration, if present. The code attempts to load
+ * `config.json` from the current working directory. If the file is missing or
+ * invalid the code falls back to defaults declared below.
+ *
+ * @type {any}
+ */
  let runtimeCfg: any = {}
  try {
    // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -22,11 +41,28 @@ import { parseRollCommand, rollDice, isValidSides } from './commands/roll'
    // ignore and rely on defaults below
  }
 
+/**
+ * Per-command enablement flags. Shape: { [commandName]: boolean }
+ * Defaults enable common commands used by the bot.
+ */
   const commandsEnabled = runtimeCfg?.commands?.enabled ?? { ping: true, marco: true, roll: true, logout: true, shutdown: true }
+
+/**
+ * Dice-related configuration controls allowed sides/rolls and whether
+ * multiple-roll commands are permitted.
+ */
   const diceCfg = runtimeCfg?.dice ?? { minSides: 2, maxSides: 100, allowMultipleRolls: false, maxRolls: 5 }
+
+/**
+ * RNG configuration. `method` may be 'math', 'crypto' or a seeded PRNG
+ * like 'mulberry32'. `seed` is used only by seeded PRNG implementations.
+ */
   const rngCfg = runtimeCfg?.rng ?? { method: 'math', seed: null }
 
-  // human-friendly help descriptions for commands
+  /**
+   * Mapping of command names to short help descriptions used by `!help`.
+   * @type {Record<string,string>}
+   */
   const commandHelp: Record<string, string> = {
     ping: '!ping — simple liveness check (replies `pong! 🏓`)',
     marco: '!marco — cultural reference reply',
@@ -37,6 +73,17 @@ import { parseRollCommand, rollDice, isValidSides } from './commands/roll'
   }
 
 
+ /**
+  * Build a random number generator function returning a uniform float in
+  * the range [0, 1). The implementation supports a few methods:
+  * - 'crypto': uses Node's crypto.randomInt for nondeterministic randomness
+  * - 'mulberry32': a small seeded PRNG (deterministic given the same seed)
+  * - default: Math.random()
+  *
+  * @param {string} method - RNG method name.
+  * @param {*} seed - Optional seed used by seeded PRNGs.
+  * @returns {() => number} Function that when called returns a float in [0,1).
+  */
  function getRandomFunc(method: string, seed: any): (() => number) {
    if (method === 'crypto') {
      try {
@@ -107,7 +154,7 @@ import { parseRollCommand, rollDice, isValidSides } from './commands/roll'
   * @returns A `Reply` object with the reply text, or `null` if no reply or the
   * message is disallowed.
   */
- export function getReplyForText(text: string): Reply | null {
+  export function getReplyForText(text: string): Reply | null {
    if (!text) return null
    const trimmed = text.trim()
 

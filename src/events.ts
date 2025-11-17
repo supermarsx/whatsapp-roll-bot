@@ -1,5 +1,50 @@
 import logger from './logger';
 
+/**
+ * Event dispatch utilities
+ *
+ * This module provides helpers to dispatch named events to external HTTP
+ * webhook endpoints when enabled in `config.json` under `events.hooks`.
+ * The implementation is intentionally small and defensive: it reads
+ * `config.json` at runtime, validates that the particular hook is enabled
+ * and has a URL, performs a short HTTP request and logs the outcome using
+ * the application's asyncLogger when available (falls back to the
+ * synchronous logger otherwise).
+ *
+ * Configuration shape (example):
+ * {
+ *   "events": {
+ *     "enabled": true,
+ *     "hooks": {
+ *       "someEvent": { "enabled": true, "url": "https://...", "method": "POST", "headers": { ... } }
+ *     }
+ *   }
+ * }
+ *
+ * @module events
+ */
+
+/**
+ * Dispatch a named event to the configured webhook hook (if enabled).
+ *
+ * The function attempts to load `config.json` from the current working
+ * directory and looks up `events.hooks[eventName]`. If the global
+ * configuration permits event hooks and the specific hook is enabled and
+ * provides a URL the function performs an HTTP request with a JSON body
+ * containing the event name and payload.
+ *
+ * Notes:
+ * - The function prefers the global `fetch` if present, otherwise it will
+ *   require `node-fetch`.
+ * - Logging is attempted via `safeEnqueue` from `./asyncLogger` (if
+ *   available) to avoid blocking; the fallback is the standard `logger`.
+ * - The HTTP request uses a short timeout (5000ms) and considers 200/201/204
+ *   as success responses.
+ *
+ * @param {string} eventName - Logical name of the event to dispatch.
+ * @param {*} payload - Arbitrary payload object that will be JSON-serialized and sent.
+ * @returns {Promise<{ok: boolean, reason?: string}>} An object indicating whether the dispatch succeeded. When `ok` is false, `reason` may contain a short explanation.
+ */
 export async function dispatchEvent(eventName: string, payload: any) {
   try {
     // load config.json and check events.hooks

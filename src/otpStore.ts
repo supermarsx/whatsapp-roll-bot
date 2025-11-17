@@ -5,10 +5,50 @@ import logger from './logger';
 
 const algorithm = 'aes-256-gcm';
 
+/**
+ * A single OTP entry stored in the encrypted store.
+ * @typedef {Object} OtpEntry
+ * @property {string} code - The one-time code string.
+ * @property {number} expiresAt - Unix ms timestamp when the code expires.
+ */
 export type OtpEntry = { code: string; expiresAt: number };
 
+/**
+ * Supported random generator types for OTP generation.
+ * - 'numeric' : numeric-only codes (zero-padded)
+ * - 'alphanumeric' : human-friendly alphanumeric without ambiguous chars
+ * - 'hex' : hex string
+ * - 'mini-llm' : pronounceable token composed from syllables
+ */
 export type RngType = 'numeric' | 'alphanumeric' | 'hex' | 'mini-llm';
 
+/**
+ * EncryptedOtpStore
+ *
+ * A small, in-process OTP store that keeps entries in-memory and persists
+ * them encrypted to disk when a 32-byte hex key (64 hex chars) is provided.
+ * The class extends EventEmitter and emits events for lifecycle and security
+ * related actions (see individual method docs for emitted events).
+ *
+ * Behaviour summary:
+ * - If constructed without a valid `keyHex` the store operates purely in
+ *   memory and will not persist OTPs to disk.
+ * - OTPs have a TTL (seconds) after which they are expired and removed.
+ * - The store tracks failed verification attempts per jid and will "jail"
+ *   the jid for a configurable duration when the failure threshold is
+ *   reached.
+ *
+ * Events emitted (examples):
+ * - 'generated'   : { jid, code, expiresAt, rng }
+ * - 'verified'    : { jid }
+ * - 'failed'      : { jid, reason, details }
+ * - 'expired'     : { jid }
+ * - 'deleted'     : { jid, ok }
+ * - 'jailed'      : { jid, until }
+ * - 'unjailed'    : { jid }
+ * - 'attemptWhileJailed' : { jid, until }
+ * - 'verifyBlocked' : { jid, until }
+ */
 export default class EncryptedOtpStore extends EventEmitter {
   private otpFile: string;
   private keyHex?: string;
@@ -22,6 +62,18 @@ export default class EncryptedOtpStore extends EventEmitter {
   private jailThreshold: number;
   private jailDurationMs: number;
 
+  /**
+   * Create an EncryptedOtpStore instance.
+   *
+   * @param {Object} opts - Options.
+   * @param {string} opts.dataDir - Directory to store encrypted OTP file (otpFile = `${dataDir}/otps.enc`).
+   * @param {string} [opts.keyHex] - 64-hex char (32 byte) key used to encrypt the store. If omitted or invalid the store will be in-memory only.
+   * @param {number} [opts.otpTTL=300] - Default TTL for generated OTPs in seconds.
+   * @param {number} [opts.otpLength=6] - Default length of generated OTP codes.
+   * @param {RngType} [opts.rngType='numeric'] - Default RNG type to use when generating codes.
+   * @param {number} [opts.jailThreshold=3] - Number of consecutive failures that trigger jailing.
+   * @param {number} [opts.jailDurationSeconds=3600] - Duration (seconds) a jid is jailed after threshold is reached.
+   */
   constructor(opts: {
     dataDir: string;
     keyHex?: string;
@@ -70,6 +122,13 @@ export default class EncryptedOtpStore extends EventEmitter {
     }
   }
 
+  /**
+   * Encrypt a plain object to a base64 string using AES-256-GCM.
+   * @private
+   * @param {*} obj - Object to encrypt (will be JSON.stringified).
+   * @param {Buffer} key - 32-byte encryption key.
+   * @returns {string} Base64 encoded ciphertext containing IV, auth tag and data.
+   */
   private encryptObject(obj: any, key: Buffer) {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -78,6 +137,13 @@ export default class EncryptedOtpStore extends EventEmitter {
     return Buffer.concat([iv, tag, data]).toString('base64');
   }
 
+  /**
+   * Decrypt a base64 string produced by encryptObject.
+   * @private
+   * @param {string} b64 - Base64 encoded blob produced by encryptObject.
+   * @param {Buffer} key - 32-byte encryption key.
+   * @returns {*} The parsed object.
+   */
   private decryptObject(b64: string, key: Buffer) {
     const buf = Buffer.from(b64, 'base64');
     const iv = buf.slice(0, 12);
@@ -89,6 +155,12 @@ export default class EncryptedOtpStore extends EventEmitter {
     return JSON.parse(out.toString('utf8'));
   }
 
+  /**
+   * Load persisted state from disk into memory. Returns false if no key is
+   * configured or if loading/decryption fails.
+   *
+   * @returns {Promise<boolean>} True if load succeeded, false otherwise.
+   */
   async load() {
     if (!this.keyHex) return false;
     try {
@@ -117,6 +189,12 @@ export default class EncryptedOtpStore extends EventEmitter {
     }
   }
 
+  /**
+   * Persist current in-memory state to disk encrypted with the configured key.
+   * If no key is configured the function returns false.
+   *
+   * @returns {Promise<boolean>} True on success, false on failure.
+   */
   async save() {
     if (!this.keyHex) return false;
     try {
@@ -146,12 +224,22 @@ export default class EncryptedOtpStore extends EventEmitter {
     }
   }
 
+  /**
+   * Generate a numeric OTP of configured length (zero-padded).
+   * @private
+   * @returns {string}
+   */
   private generateNumeric() {
     const max = Math.pow(10, this.otpLength);
     const num = crypto.randomInt(0, max);
     return String(num).padStart(this.otpLength, '0');
   }
 
+  /**
+   * Generate an alphanumeric OTP from a human-friendly character set.
+   * @private
+   * @returns {string}
+   */
   private generateAlphanumeric() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     let out = '';
@@ -159,6 +247,11 @@ export default class EncryptedOtpStore extends EventEmitter {
     return out;
   }
 
+  /**
+   * Generate a hex OTP of configured length.
+   * @private
+   * @returns {string}
+   */
   private generateHex() {
     return crypto
       .randomBytes(Math.ceil(this.otpLength / 2))
@@ -166,7 +259,11 @@ export default class EncryptedOtpStore extends EventEmitter {
       .slice(0, this.otpLength);
   }
 
-  // a tiny 'mini-llm' that composes pronounceable tokens from syllables
+  /**
+   * Tiny pronounceable token generator used as a 'mini-llm' option.
+   * @private
+   * @returns {string}
+   */
   private generateMiniLlm() {
     const syllables = ['ra', 'ne', 'lo', 'mi', 'sa', 'tu', 've', 'ka', 'zu', 'pi', 'on', 'el'];
     let out = '';
@@ -176,6 +273,17 @@ export default class EncryptedOtpStore extends EventEmitter {
     return out.slice(0, this.otpLength);
   }
 
+  /**
+   * Generate and store an OTP for a given jid.
+   *
+   * Emits 'generated' on success.
+   *
+   * @param {string} jid - The identifier the OTP is generated for.
+   * @param {Object} [opts] - Optional settings.
+   * @param {RngType} [opts.rngType] - Override the store's default rngType for this generation.
+   * @returns {Promise<{code: string, expiresAt: number}>} The generated code and expiry timestamp.
+   * @throws {Error} If `jid` is falsy or the jid is currently jailed.
+   */
   async generate(jid: string, opts?: { rngType?: RngType }) {
     if (!jid) throw new Error('jid required');
     // don't allow generating if jailed
@@ -200,6 +308,13 @@ export default class EncryptedOtpStore extends EventEmitter {
     return { code, expiresAt };
   }
 
+  /**
+   * Record a failed verification attempt for a jid and apply jailing policy
+   * when configured thresholds are exceeded.
+   * @private
+   * @param {string} jid
+   * @returns {{jailed: boolean, until?: number, attempts?: number}}
+   */
   private recordFailure(jid: string) {
     const prev = this.failures.get(jid) || 0;
     const now = Date.now();
@@ -218,6 +333,17 @@ export default class EncryptedOtpStore extends EventEmitter {
     return { jailed: false, attempts: current };
   }
 
+  /**
+   * Verify a code for a given jid. Returns true on successful verification
+   * and false otherwise. Successful verification removes the OTP and resets
+   * failure counters.
+   *
+   * Emits 'verified', 'expired', 'failed', or 'verifyBlocked' depending on outcome.
+   *
+   * @param {string} jid
+   * @param {string} code
+   * @returns {Promise<boolean>} True if verified, false otherwise.
+   */
   async verify(jid: string, code: string) {
     const now = Date.now();
     const jailedUntil = this.jailedUntil.get(jid) || 0;
@@ -246,6 +372,12 @@ export default class EncryptedOtpStore extends EventEmitter {
     return false;
   }
 
+  /**
+   * Delete any stored OTP for a jid. Emits 'deleted'.
+   *
+   * @param {string} jid
+   * @returns {Promise<boolean>} True if an entry was deleted, false otherwise.
+   */
   async delete(jid: string) {
     const ok = this.otpMap.delete(jid);
     if (ok) await this.save();
@@ -253,6 +385,11 @@ export default class EncryptedOtpStore extends EventEmitter {
     return ok;
   }
 
+  /**
+   * Cleanup expired OTPs and expired jails. Persists changes if any were made.
+   *
+   * @returns {Promise<boolean>} True if any OTPs were removed, otherwise false.
+   */
   async cleanup() {
     const now = Date.now();
     let changed = false;
@@ -284,7 +421,8 @@ export default class EncryptedOtpStore extends EventEmitter {
   }
 
   /**
-   * Return a plain object of currently jailed entries { jid: until }
+   * Return a plain object of currently jailed entries { jid: until }.
+   * @returns {Record<string, number>}
    */
   listJailed() {
     const out: Record<string, number> = {};
@@ -295,6 +433,9 @@ export default class EncryptedOtpStore extends EventEmitter {
   /**
    * Remove a jid from the jail list (if present) and persist state.
    * Emits an `unjailed` event when successful.
+   *
+   * @param {string} jid
+   * @returns {Promise<boolean>} True if jid was unjailed, false if it was not present.
    */
   async unjail(jid: string) {
     const had = this.jailedUntil.delete(jid);

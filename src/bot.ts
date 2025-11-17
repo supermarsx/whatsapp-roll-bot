@@ -1,4 +1,7 @@
 import { Boom } from '@hapi/boom';
+
+// Module-level reference to the active socket to support CLI store inspection
+let _sock: any = null;
 import NodeCache from '@cacheable/node-cache';
 import * as readline from 'readline';
 import logger from './logger';
@@ -330,6 +333,7 @@ export async function start(): Promise<void> {
     return { limited: false };
   }
 
+  // Create the Baileys socket with the expected options
   const sock = makeWASocket({
     version,
     logger: baileysLogger,
@@ -340,6 +344,9 @@ export async function start(): Promise<void> {
     },
     msgRetryCounterCache,
   });
+
+  // store module-level reference so CLI can inspect when running
+  _sock = sock;
 
   // register graceful shutdown handlers bound to this socket and readline
   const shutdownHandler = async (code = 0) => await gracefulShutdown(sock, rl, code);
@@ -787,6 +794,10 @@ async function gracefulShutdown(sock: any, rl: readline.Interface, exitCode = 0)
   } catch (err) {
     enqueueLog('error', 'Error during graceful shutdown: ' + (err && (err as Error).message));
   } finally {
+    // clear module-level reference
+    try {
+      _sock = null;
+    } catch {}
     process.exit(exitCode);
   }
 }
@@ -840,6 +851,27 @@ export async function shutdown(
   } catch (err) {
     enqueueLog('error', 'Error during shutdown wrapper: ' + (err && (err as Error).message));
   } finally {
+    // clear module-level reference for CLI
+    try {
+      _sock = null;
+    } catch {}
     if (!skipExit) process.exit(exitCode);
+  }
+}
+
+/**
+ * Provide a test/CLI-friendly snapshot of the in-memory store when the bot
+ * is running. Returns null when no live socket/store is available.
+ */
+export function getStoreSnapshot() {
+  try {
+    if (!_sock) return null;
+    // Baileys stores may expose `store` with `chats` and `contacts`, or expose
+    // `chats`/`contacts` directly on the socket depending on version.
+    const chats = _sock.store?.chats || _sock.chats || {};
+    const contacts = _sock.store?.contacts || _sock.contacts || {};
+    return { chats, contacts };
+  } catch (e) {
+    return null;
   }
 }

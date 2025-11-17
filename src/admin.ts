@@ -3,13 +3,24 @@ import { readConfig, writeConfig } from './config';
 import EncryptedOtpStore from './otpStore';
 
 /**
+ * Admin utilities
+ *
+ * Small helpers to manage the application's admin channel and to interact
+ * with the OTP store for management tasks. These functions favor non-blocking
+ * IO and enqueue log messages rather than performing heavy synchronous
+ * logging in hot paths.
+ *
+ * @module admin
+ */
+
+/**
  * Set the admin channel in the runtime configuration file.
  * Uses async non-blocking IO via `src/config.ts` and enqueues log entries
  * to avoid blocking the main loop during log formatting.
  *
- * @param cfgPath - Path to JSON config file
- * @param groupJid - Group JID to set as admin channel
- * @returns true on success, false on failure
+ * @param {string} cfgPath - Path to JSON config file
+ * @param {string} groupJid - Group JID to set as admin channel
+ * @returns {Promise<boolean>} true on success, false on failure
  */
 export async function setAdminChannel(cfgPath: string, groupJid: string): Promise<boolean> {
   try {
@@ -33,8 +44,8 @@ export async function setAdminChannel(cfgPath: string, groupJid: string): Promis
 /**
  * Unset the admin channel in the runtime configuration file.
  *
- * @param cfgPath - Path to JSON config file
- * @returns true on success, false on failure
+ * @param {string} cfgPath - Path to JSON config file
+ * @returns {Promise<boolean>} true on success, false on failure
  */
 export async function unsetAdminChannel(cfgPath: string): Promise<boolean> {
   try {
@@ -55,8 +66,12 @@ export async function unsetAdminChannel(cfgPath: string): Promise<boolean> {
 /**
  * Get jailed entries from the OTP store.
  *
- * @param otpStore - Instance of EncryptedOtpStore
- * @returns Map of jid -> until timestamp or empty object on failure
+ * This wrapper calls into the provided EncryptedOtpStore instance and
+ * returns its `listJailed()` result. Errors are logged and an empty object
+ * is returned on failure to keep callers simple.
+ *
+ * @param {EncryptedOtpStore} otpStore - Instance of EncryptedOtpStore
+ * @returns {Record<string, number>} Map of jid -> until timestamp or empty object on failure
  */
 export function listJailed(otpStore: EncryptedOtpStore) {
   try {
@@ -70,9 +85,9 @@ export function listJailed(otpStore: EncryptedOtpStore) {
 /**
  * Unjail a target JID using the provided OTP store.
  *
- * @param otpStore - Instance of EncryptedOtpStore
- * @param jid - JID to unjail
- * @returns true if unjailed, false otherwise
+ * @param {EncryptedOtpStore} otpStore - Instance of EncryptedOtpStore
+ * @param {string} jid - JID to unjail
+ * @returns {Promise<boolean>} true if unjailed, false otherwise
  */
 export async function unjail(otpStore: EncryptedOtpStore, jid: string): Promise<boolean> {
   try {

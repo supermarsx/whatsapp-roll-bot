@@ -5,3 +5,5 @@ wa-logs.txt
 
 /logs
 /data
+/tests/tmp-logs
+config.json
