@@ -179,6 +179,44 @@ whatsapp-roll-bot:latest node dist/bot.js`
   - `!admin set <option> <value>` — set an admin configuration (refer to
     config for available options).
 
+**CLI (command-line interface)**
+
+- Run the CLI via `node dist/index.js <command>` or use the `npm run` helpers after building.
+
+- Commands:
+  - `start` — Start the bot (same as `node dist/bot.js`).
+  - `manage` — Start the bot in management mode (appends `--manage`).
+  - `check-logs` — Run the log rotation monitor once and exit.
+  - `purge-logs` — Purge old rotated logs according to `logging.retainDays` or the provided defaults.
+  - `list-jailed` — Print jailed OTP JIDs from the OTP store.
+  - `unjail <jid>` — Remove a JID from the jail list.
+  - `set-admin <groupJid>` — Persist admin channel to `config.json`.
+  - `unset-admin` — Remove admin channel from `config.json`.
+  - `help`, `-h`, `--help` — Show help text and usage examples.
+
+- CLI management enable/disable
+  - You may control whether the CLI can start or manage the running bot via `config.json`.
+  - Add the key `cli.managementEnabled` (boolean). Defaults to `true` when omitted.
+  - Example to disable management from CLI:
+
+```json
+{
+  "cli": {
+    "managementEnabled": false
+  }
+}
+```
+
+- When disabled, `start` and `manage` will print an error and exit with code `2`.
+
+- Notes about `list-*` commands
+  - The `list-groups` and `list-contacts` commands attempt to use a running bot's in-memory store by requiring the bot module and calling `getStoreSnapshot()` if available. If no running store is found the CLI prints a helpful message: `No running bot store found. Start the bot and try again, or extend the CLI to load a session.`
+
+- Examples:
+  - `node dist/index.js check-logs` — run checks once and exit.
+  - `node dist/index.js purge-logs` — purge logs based on config.
+  - `node dist/index.js set-admin 12345-67890@g.us` — set admin channel.
+
 **Developer workflow**
 
 - Run unit tests: `npm test`
