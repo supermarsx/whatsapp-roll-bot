@@ -83,7 +83,7 @@ jobs:
         run: npm test -- --coverage --coverageProvider=v8
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage
