@@ -19,7 +19,7 @@
  * @module pinoToWinston
  */
 
-import type { Logger as WinstonLogger } from 'winston'
+import type { Logger as WinstonLogger } from 'winston';
 
 /**
  * Minimal pino-like logger interface used by consumers of this adapter.
@@ -59,7 +59,7 @@ export default function createPinoCompatibleLogger(winstonLogger: WinstonLogger)
     warn: 'warn',
     error: 'error',
     fatal: 'error',
-  }
+  };
 
   /**
    * Build a logging method that forwards its arguments to Winston.
@@ -76,21 +76,21 @@ export default function createPinoCompatibleLogger(winstonLogger: WinstonLogger)
     return (...args: any[]) => {
       try {
         const msg = args
-          .map((a) => {
-            if (typeof a === 'string') return a
+          .map(a => {
+            if (typeof a === 'string') return a;
             try {
-              return JSON.stringify(a)
+              return JSON.stringify(a);
             } catch (e) {
-              return String(a)
+              return String(a);
             }
           })
-          .join(' ')
-        winstonLogger.log({ level: levelMap[level] || 'info', message: msg })
+          .join(' ');
+        winstonLogger.log({ level: levelMap[level] || 'info', message: msg });
       } catch (e) {
         // swallow to avoid breaking callers
       }
-    }
-  }
+    };
+  };
 
   /**
    * Adapter object implementing the documented PinoLikeLogger interface.
@@ -110,7 +110,7 @@ export default function createPinoCompatibleLogger(winstonLogger: WinstonLogger)
     warn: makeMethod('warn'),
     error: makeMethod('error'),
     fatal: makeMethod('fatal'),
-  }
+  };
 
-  return adapter as unknown as any
+  return adapter as unknown as any;
 }

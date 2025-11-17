@@ -1,22 +1,22 @@
-import { shutdown } from '../src/bot'
+import { shutdown } from '../src/bot';
 
 describe('shutdown wrapper', () => {
   test('calls logout and closes rl without exiting when skipExit=true', async () => {
-    const called: string[] = []
+    const called: string[] = [];
     const sock = {
       logout: async () => {
-        called.push('logout')
+        called.push('logout');
       },
-    }
+    };
     const rl = {
       close: () => {
-        called.push('rl.close')
+        called.push('rl.close');
       },
-    } as any
+    } as any;
 
-    await shutdown(sock as any, rl as any, { skipExit: true })
+    await shutdown(sock as any, rl as any, { skipExit: true });
 
-    expect(called).toContain('logout')
-    expect(called).toContain('rl.close')
-  })
-})
+    expect(called).toContain('logout');
+    expect(called).toContain('rl.close');
+  });
+});

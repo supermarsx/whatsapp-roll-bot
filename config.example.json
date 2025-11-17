@@ -75,7 +75,7 @@
   "rng": {
     "method": "crypto",
     "seed": null,
-    "methods": ["math","crypto","mulberry32"]
+    "methods": ["math", "crypto", "mulberry32"]
   },
   "events": {
     "enabled": false,
@@ -89,4 +89,3 @@
     }
   }
 }
-

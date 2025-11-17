@@ -9,38 +9,38 @@
  * `info` when not set. Rotation keeps files for 14 days and compresses older
  * files.
  */
-import { createLogger, format, transports } from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
+import { createLogger, format, transports } from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
-const { combine, timestamp, printf, colorize } = format
+const { combine, timestamp, printf, colorize } = format;
 
 const logFormat = printf(({ level, message, timestamp }) => {
-  return `${timestamp} [${level}]: ${message}`
-})
+  return `${timestamp} [${level}]: ${message}`;
+});
 
 // Attempt to read `config.json` to allow runtime configuration of logging
-let logsDir = 'logs'
-let defaultLevel = process.env.LOG_LEVEL || 'info'
-let dailyRotate = true
-let maxSize = '20m'
-let maxFiles = '14d'
-let consoleEnabled = process.env.NODE_ENV !== 'production'
+let logsDir = 'logs';
+let defaultLevel = process.env.LOG_LEVEL || 'info';
+let dailyRotate = true;
+let maxSize = '20m';
+let maxFiles = '14d';
+let consoleEnabled = process.env.NODE_ENV !== 'production';
 
 try {
   // require here so import-time doesn't try to load fs/promises in ESM oddities
   // and so tests that don't have config.json aren't impacted.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const fs = require('fs')
-  const cfgPath = 'config.json'
+  const fs = require('fs');
+  const cfgPath = 'config.json';
   if (fs.existsSync(cfgPath)) {
-    const raw = fs.readFileSync(cfgPath, 'utf8')
-    const parsed = JSON.parse(raw)
-    logsDir = parsed?.paths?.logsDir || logsDir
-    defaultLevel = parsed?.logging?.level || defaultLevel
-    dailyRotate = parsed?.logging?.dailyRotate ?? dailyRotate
-    maxSize = parsed?.logging?.maxSize || maxSize
-    maxFiles = parsed?.logging?.maxFiles || maxFiles
-    consoleEnabled = parsed?.logging?.console ?? consoleEnabled
+    const raw = fs.readFileSync(cfgPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    logsDir = parsed?.paths?.logsDir || logsDir;
+    defaultLevel = parsed?.logging?.level || defaultLevel;
+    dailyRotate = parsed?.logging?.dailyRotate ?? dailyRotate;
+    maxSize = parsed?.logging?.maxSize || maxSize;
+    maxFiles = parsed?.logging?.maxFiles || maxFiles;
+    consoleEnabled = parsed?.logging?.console ?? consoleEnabled;
   }
 } catch (e) {
   // ignore and use defaults
@@ -49,13 +49,13 @@ try {
 // ensure logs dir exists
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const fs = require('fs')
-  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true })
+  const fs = require('fs');
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 } catch (e) {
   // ignore
 }
 
-const transportsList: any[] = []
+const transportsList: any[] = [];
 if (dailyRotate) {
   transportsList.push(
     new DailyRotateFile({
@@ -65,20 +65,24 @@ if (dailyRotate) {
       maxSize,
       maxFiles,
       level: defaultLevel,
-    })
-  )
+    }),
+  );
 } else {
-  transportsList.push(new transports.File({ filename: `${logsDir}/application.log`, level: defaultLevel }))
+  transportsList.push(
+    new transports.File({ filename: `${logsDir}/application.log`, level: defaultLevel }),
+  );
 }
 
 if (consoleEnabled) {
-  transportsList.push(new transports.Console({ format: combine(colorize(), timestamp(), logFormat) }))
+  transportsList.push(
+    new transports.Console({ format: combine(colorize(), timestamp(), logFormat) }),
+  );
 }
 
 const logger = createLogger({
   level: defaultLevel,
   format: combine(timestamp(), logFormat),
   transports: transportsList,
-})
+});
 
-export default logger
+export default logger;
