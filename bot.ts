@@ -2,16 +2,12 @@ import { Boom } from '@hapi/boom'
 import NodeCache from '@cacheable/node-cache'
 import * as readline from 'readline'
 import makeWASocket, {
-    AnyMessageContent,
-    delay,
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
-    proto,
     useMultiFileAuthState,
-    WAMessageContent,
-    WAMessageKey,
-    isJidNewsletter
+    isJidNewsletter,
+    CacheStore
 } from '@whiskeysockets/baileys'
 import P from 'pino'
 import { generate } from 'ts-qrcode-terminal'
@@ -20,7 +16,7 @@ import { generate } from 'ts-qrcode-terminal'
 const logger = P({ timestamp: () => `,"time":"${new Date().toJSON()}"` }, P.destination('./wa-logs.txt'))
 logger.level = 'info'
 
-const msgRetryCounterCache = new NodeCache()
+const msgRetryCounterCache: CacheStore = new NodeCache() as unknown as CacheStore
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 const question = (text: string) => new Promise<string>((resolve) => rl.question(text, resolve))
 const usePairingCode = process.argv.includes('--use-pairing-code')
