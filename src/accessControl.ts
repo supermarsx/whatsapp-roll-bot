@@ -35,6 +35,8 @@ export type AccessConfig = {
   }
   options?: {
     allowPartialMatches?: boolean
+    disallowIndividuals?: boolean
+    disallowGroups?: boolean
   }
 }
 
@@ -51,6 +53,8 @@ export default function createAccessControl(cfg?: AccessConfig) {
 
   const blacklistRegexes = (blacklist.patterns || []).map((p) => new RegExp(p, 'i'))
   const allowPartial = Boolean(cfg?.options?.allowPartialMatches)
+  const disallowIndividuals = Boolean(cfg?.options?.disallowIndividuals)
+  const disallowGroups = Boolean(cfg?.options?.disallowGroups)
 
   function matchWithOption(list: string[] | undefined, value?: string) {
     if (!value || !list || list.length === 0) return false
@@ -138,6 +142,10 @@ export default function createAccessControl(cfg?: AccessConfig) {
    */
   function isMessageAllowed(opts: { text?: string; from?: string; isGroup?: boolean; groupJid?: string }) {
     const { text, from, isGroup, groupJid } = opts
+    // Optionally disallow individuals or groups entirely
+    if (disallowIndividuals && !isGroup) return false
+    if (disallowGroups && isGroup) return false
+
     // explicit contact blacklist wins
     if (isContactBlacklisted(from) || isPrefixBlacklisted(from)) return false
     if (isGroup && isGroupBlacklisted(groupJid)) return false

@@ -9,7 +9,10 @@ export default start
 
 if (require.main === module) {
     start().catch((err) => {
-        console.error('Uncaught error starting bot:', err)
+        // use application logger
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const logger = require('./logger').default
+        logger.error('Uncaught error starting bot:', err)
         process.exit(1)
     })
 }

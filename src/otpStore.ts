@@ -1,6 +1,7 @@
 import fs from 'fs'
 import crypto from 'crypto'
 import { EventEmitter } from 'events'
+import logger from './logger'
 
 const algorithm = 'aes-256-gcm'
 
@@ -36,7 +37,7 @@ export default class EncryptedOtpStore extends EventEmitter {
 
     // basic key validation
     if (this.keyHex && !/^[0-9a-fA-F]{64}$/.test(this.keyHex)) {
-      console.warn('OTP_STORE_KEY looks invalid: expected 64 hex chars (32 bytes). Falling back to in-memory store.')
+      logger.warn('OTP_STORE_KEY looks invalid: expected 64 hex chars (32 bytes). Falling back to in-memory store.')
       this.keyHex = undefined
     }
   }
@@ -72,7 +73,7 @@ export default class EncryptedOtpStore extends EventEmitter {
       for (const [k, v] of Object.entries(obj?.jailed || {})) this.jailedUntil.set(k, Number(v))
       return true
     } catch (e) {
-      console.warn('Failed to load OTP store:', (e && (e as Error).message) || e)
+      logger.warn('Failed to load OTP store:', (e && (e as Error).message) || e)
       return false
     }
   }
@@ -90,7 +91,7 @@ export default class EncryptedOtpStore extends EventEmitter {
       await fs.promises.writeFile(this.otpFile, enc, 'utf8')
       return true
     } catch (e) {
-      console.warn('Failed to save OTP store:', (e && (e as Error).message) || e)
+      logger.warn('Failed to save OTP store:', (e && (e as Error).message) || e)
       return false
     }
   }

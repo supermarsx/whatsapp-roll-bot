@@ -5,6 +5,7 @@ import logger from './logger'
 import createPinoCompatibleLogger from './pinoToWinston'
 import createAccessControl from './accessControl'
 import { generate } from 'ts-qrcode-terminal'
+import * as adminHelpers from './admin'
 
 /**
  * Start the WhatsApp roll bot.
@@ -454,18 +455,14 @@ export async function start(): Promise<void> {
                                             // if adminChannel not set and message came from a group, auto-set admin channel
                                             if (!adminChannel && msg.key.remoteJid && msg.key.remoteJid.endsWith('@g.us')) {
                                                 try {
-                                                    // persist to config.json
                                                     const cfgPath = 'config.json'
-                                                    let cur = {}
-                                                    try {
-                                                        cur = JSON.parse(await (await import('fs')).promises.readFile(cfgPath, 'utf8'))
-                                                    } catch (err) {
-                                                        // ignore
+                                                    const ok = await adminHelpers.setAdminChannel(cfgPath, msg.key.remoteJid)
+                                                    if (ok) {
+                                                        await sock.sendMessage(msg.key.remoteJid!, { text: `✅ Pairing accepted. This group (${msg.key.remoteJid}) is now configured as admin channel.` })
+                                                        logger.info(`Admin channel auto-configured to ${msg.key.remoteJid} by ${senderJid}`)
+                                                    } else {
+                                                        await sock.sendMessage(msg.key.remoteJid!, { text: '✅ Pairing accepted, but failed to persist admin channel to config.' })
                                                     }
-                                                    cur = { ...(cur as any), admin: { ...( (cur as any).admin || {} ), adminChannel: msg.key.remoteJid } }
-                                                    await (await import('fs')).promises.writeFile(cfgPath, JSON.stringify(cur, null, 2), 'utf8')
-                                                    await sock.sendMessage(msg.key.remoteJid!, { text: `✅ Pairing accepted. This group (${msg.key.remoteJid}) is now configured as admin channel.` })
-                                                    logger.info(`Admin channel auto-configured to ${msg.key.remoteJid} by ${senderJid}`)
                                                 } catch (e) {
                                                     logger.warn('Failed to persist adminChannel to config.json: ' + (e && (e as Error).message))
                                                     await sock.sendMessage(msg.key.remoteJid!, { text: '✅ Pairing accepted, but failed to persist admin channel to config.' })
@@ -509,16 +506,12 @@ export async function start(): Promise<void> {
                                     if (msg.key.remoteJid && msg.key.remoteJid.endsWith('@g.us')) {
                                         try {
                                             const cfgPath = 'config.json'
-                                            let cur = {}
-                                            try {
-                                                cur = JSON.parse(await (await import('fs')).promises.readFile(cfgPath, 'utf8'))
-                                            } catch (err) {
-                                                // ignore
+                                            const ok = await adminHelpers.setAdminChannel(cfgPath, msg.key.remoteJid)
+                                            if (ok) {
+                                                await sock.sendMessage(msg.key.remoteJid!, { text: `✅ This group (${msg.key.remoteJid}) has been configured as admin channel.` })
+                                            } else {
+                                                await sock.sendMessage(msg.key.remoteJid!, { text: '❌ Failed to persist admin channel to config.' })
                                             }
-                                            cur = { ...(cur as any), admin: { ...( (cur as any).admin || {} ), adminChannel: msg.key.remoteJid } }
-                                            await (await import('fs')).promises.writeFile(cfgPath, JSON.stringify(cur, null, 2), 'utf8')
-                                            await sock.sendMessage(msg.key.remoteJid!, { text: `✅ This group (${msg.key.remoteJid}) has been configured as admin channel.` })
-                                            logger.info(`Admin channel set to ${msg.key.remoteJid} by ${senderJid}`)
                                         } catch (e) {
                                             logger.warn('Failed to persist adminChannel to config.json: ' + (e && (e as Error).message))
                                             await sock.sendMessage(msg.key.remoteJid!, { text: '❌ Failed to persist admin channel to config.' })
@@ -530,16 +523,13 @@ export async function start(): Promise<void> {
                                 if (cmd === '!unsetadmin') {
                                     try {
                                         const cfgPath = 'config.json'
-                                        let cur: any = {}
-                                        try {
-                                            cur = JSON.parse(await (await import('fs')).promises.readFile(cfgPath, 'utf8'))
-                                        } catch (err) {
-                                            // ignore
+                                        const ok = await adminHelpers.unsetAdminChannel(cfgPath)
+                                        if (ok) {
+                                            await sock.sendMessage(msg.key.remoteJid!, { text: `✅ Admin channel unset.` })
+                                            logger.info(`Admin channel unset by ${senderJid}`)
+                                        } else {
+                                            await sock.sendMessage(msg.key.remoteJid!, { text: '❌ Failed to update config.' })
                                         }
-                                        if (cur.admin) delete cur.admin.adminChannel
-                                        await (await import('fs')).promises.writeFile(cfgPath, JSON.stringify(cur, null, 2), 'utf8')
-                                        await sock.sendMessage(msg.key.remoteJid!, { text: `✅ Admin channel unset.` })
-                                        logger.info(`Admin channel unset by ${senderJid}`)
                                     } catch (e) {
                                         logger.warn('Failed to unset adminChannel in config.json: ' + (e && (e as Error).message))
                                         await sock.sendMessage(msg.key.remoteJid!, { text: '❌ Failed to update config.' })
@@ -547,7 +537,7 @@ export async function start(): Promise<void> {
                                 }
                                 if (cmd === '!listjailed') {
                                     try {
-                                        const jailed = otpStoreClass.listJailed()
+                                        const jailed = adminHelpers.listJailed(otpStoreClass)
                                         const lines = Object.entries(jailed).map(([j, until]) => `${j} -> ${new Date(Number(until)).toISOString()}`)
                                         const body = lines.length ? lines.join('\n') : 'No jailed JIDs.'
                                         await sock.sendMessage(msg.key.remoteJid!, { text: `Jailed entries:\n${body}` })
@@ -563,7 +553,7 @@ export async function start(): Promise<void> {
                                         await sock.sendMessage(msg.key.remoteJid!, { text: 'Usage: !unjail <jid>' })
                                     } else {
                                         try {
-                                            const ok = await otpStoreClass.unjail(target)
+                                            const ok = await adminHelpers.unjail(otpStoreClass, target)
                                             await sock.sendMessage(msg.key.remoteJid!, { text: ok ? `✅ Unjailed ${target}` : `No jailed entry for ${target}` })
                                         } catch (e) {
                                             logger.warn('Failed to unjail: ' + (e && (e as Error).message))
@@ -630,7 +620,7 @@ async function gracefulShutdown(sock: any, rl: readline.Interface, exitCode = 0)
             }
         }
     } catch (err) {
-        console.error('Error during graceful shutdown', err)
+        logger.error('Error during graceful shutdown', err)
     } finally {
         process.exit(exitCode)
     }
@@ -677,7 +667,7 @@ export async function shutdown(
             }
         }
     } catch (err) {
-        console.error('Error during shutdown wrapper', err)
+        logger.error('Error during shutdown wrapper', err)
     } finally {
         if (!skipExit) process.exit(exitCode)
     }
