@@ -1,0 +1,32 @@
+name: Monthly Release
+
+on:
+  schedule:
+    - cron: '0 23 * * *' # run daily at 23:00 UTC (ensures run near end of day)
+  push:
+    branches:
+      - main
+
+jobs:
+  monthly-release:
+    name: Create monthly release if due
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run monthly release script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/monthly-release.js

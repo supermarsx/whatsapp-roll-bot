@@ -15,6 +15,7 @@
  * @module index
  */
 
+import './polyfills';
 import { start } from './bot';
 
 /**

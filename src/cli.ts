@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './polyfills';
 import { readConfig } from './config';
 import { setAdminChannel, unsetAdminChannel } from './admin';
 import EncryptedOtpStore from './otpStore';
