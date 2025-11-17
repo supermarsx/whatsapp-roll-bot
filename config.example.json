@@ -1,0 +1,7 @@
+{
+  "rateLimit": {
+    "perSenderPerWindow": 30,
+    "globalPerWindow": 500,
+    "windowSeconds": 60
+  }
+}

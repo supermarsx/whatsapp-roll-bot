@@ -1,3 +1,14 @@
+/**
+ * Application logger singleton backed by Winston.
+ *
+ * - Writes daily rotated log files to `logs/application-<DATE>.log`.
+ * - In non-production environments, logs are also written to the console
+ *   with colorized output for easier development debugging.
+ *
+ * The logger respects the `LOG_LEVEL` environment variable and defaults to
+ * `info` when not set. Rotation keeps files for 14 days and compresses older
+ * files.
+ */
 import { createLogger, format, transports } from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 

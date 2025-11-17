@@ -7,6 +7,8 @@
     "build": "npm run compile",
     "run": "npm run build && node dist/bot.js",
     "start": "npm run run",
+    "start:pair": "npm run build && node dist/bot.js --use-pairing-code",
+    "start:qr": "npm run build && node dist/bot.js --qr-only",
     "test": "jest --runInBand",
     "lint": "eslint --ext .ts . || true",
     "format": "prettier --write \"**/*.{ts,js,json,md}\""
