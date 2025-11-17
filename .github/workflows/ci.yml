@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  format:
+    name: Format (check)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,29 +17,92 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '24.x'
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
-      - name: Format (check)
+      - name: Prettier check
         run: npx prettier --check "**/*.{ts,js,json,md}"
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    needs: [format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install
+        run: npm ci
+
       - name: Lint
         run: npm run lint
 
-      - name: Test (with coverage)
-        run: |
-          npm test -- --coverage --coverageProvider=v8
+  test:
+    name: Test (with coverage)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install
+        run: npm ci
+
+      - name: Run tests (coverage)
+        run: npm test -- --coverage --coverageProvider=v8
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/**/*.json
           fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install
+        run: npm ci
 
       - name: Build
         run: npm run build
